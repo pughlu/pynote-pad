@@ -239,32 +239,58 @@ class SkulptKernel {
             timeoutMsg: () => "Execution stopped: Time limit (5s) exceeded."
         });
 
-        // --- NEW: Skulpt Expression Evaluator ---
+        // --- Skulpt Expression Evaluator (JupyterLab-style) ---
         let executableCode = code;
-        const lines = code.trimEnd().split('\n');
-        let originalLinesCount = lines.length;
+        const lines = code.split('\n');
         let isWrapped = false;
+        let lastCodeIndex = -1;
         
-        if (lines.length > 0) {
-            const lastLine = lines[lines.length - 1];
+        // Find the last line that has actual code, ignoring blank lines and comments
+        for (let i = lines.length - 1; i >= 0; i--) {
+            const trimmed = lines[i].trim();
+            if (trimmed !== '' && !trimmed.startsWith('#')) {
+                lastCodeIndex = i;
+                break;
+            }
+        }
+        
+        if (lastCodeIndex !== -1) {
+            const lastCodeLine = lines[lastCodeIndex];
+            const trimmed = lastCodeLine.trim();
             
             // Heuristic: Is it a top-level line? Does it lack assignments? Is it not a keyword?
-            const sanitized = lastLine.replace(/(==|!=|<=|>=)/g, '  ');
+            const sanitized = trimmed.replace(/(==|!=|<=|>=)/g, '  ');
             const hasAssignment = sanitized.includes('=');
-            const isKeyword = /^(import|from|def|class|if|elif|else|for|while|try|except|finally|with|assert|pass|return|break|continue|yield|del|raise|global|nonlocal|print)\b/.test(lastLine.trim());
+            const isKeyword = /^(import|from|def|class|if|elif|else|for|while|try|except|finally|with|assert|pass|return|break|continue|yield|del|raise|global|nonlocal|print)\b/.test(trimmed);
 
-            if (lastLine && !/^\s/.test(lastLine) && !hasAssignment && !isKeyword) {
-                isWrapped = true;
-                // Wrap the expression safely. If eval() fails, it falls back to native execution.
-                lines[lines.length - 1] = `
+            if (lastCodeLine && !/^\s/.test(lastCodeLine) && !hasAssignment && !isKeyword) {
+                // If there is an inline comment (e.g. `x + 1 # comment`), strip it for eval()
+                let evalExpr = trimmed;
+                const hashIndex = evalExpr.indexOf('#');
+                if (hashIndex !== -1) {
+                    const beforeHash = evalExpr.substring(0, hashIndex);
+                    const singleQuotes = (beforeHash.match(/'/g) || []).length;
+                    const doubleQuotes = (beforeHash.match(/"/g) || []).length;
+                    if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0) {
+                        evalExpr = beforeHash.trim();
+                    }
+                }
+
+                if (evalExpr) {
+                    isWrapped = true;
+                    // Wrap the expression safely. If eval() fails, fall back to native execution.
+                    // Include 'pass' in except to guarantee valid indentation even if fallback is empty or commented.
+                    lines[lastCodeIndex] = `
 try:
-    __skulpt_res = eval(${JSON.stringify(lastLine)})
+    __skulpt_res = eval(${JSON.stringify(evalExpr)})
     if __skulpt_res is not None:
         print(repr(__skulpt_res))
 except BaseException:
-    ${lastLine}
+    ${lastCodeLine}
+    pass
 `.trim();
-                executableCode = lines.join('\n');
+                    executableCode = lines.join('\n');
+                }
             }
         }
 
@@ -274,11 +300,16 @@ except BaseException:
             if (this.isKilled) throw new Error(`Execution stopped: Output exceeded maximum limit.`);
             
             let errStr = err.toString();
-            // Map the injected lines back to the original last line
+            // Map the injected lines back to the original line numbers
             errStr = errStr.replace(/(?:on\s+<stdin>\s+on\s+line\s+|on\s+line\s+|line\s+)(\d+)/g, (match, lineNumStr) => {
                 let lineNum = parseInt(lineNumStr, 10);
-                if (isWrapped && lineNum > originalLinesCount) {
-                    lineNum = originalLinesCount;
+                if (isWrapped && lastCodeIndex !== -1) {
+                    const wrappedStart = lastCodeIndex + 1;
+                    if (lineNum >= wrappedStart && lineNum <= wrappedStart + 6) {
+                        lineNum = wrappedStart;
+                    } else if (lineNum > wrappedStart + 6) {
+                        lineNum = lineNum - 6;
+                    }
                 }
                 return "on line " + lineNum;
             });
