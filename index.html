@@ -228,6 +228,17 @@
                         document.getElementById('btn-reset').classList.remove('hidden');
                     }
                     
+                    // Map LMS run modes to PyNote specific flags
+                    if (config.runMode === 'attempt') {
+                        config.disableInsertAll = config.disableInsertAll ?? true;
+                        config.disableInsertTop = config.disableInsertTop ?? true;
+                        config.disableDelete = config.disableDelete ?? true;
+                        config.disableMove = config.disableMove ?? true;
+                        config.lockAllMarkdown = config.lockAllMarkdown ?? true;
+                    } else if (config.runMode === 'review') {
+                        config.isReadOnly = true;
+                    }
+                    
                     window.notebookCore = new NotebookCore('notebook-container', config);
                     
                     if (content) {
