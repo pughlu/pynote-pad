@@ -608,6 +608,9 @@ class NotebookCore {
     }
 
     setupEventListeners() {
+        if ((this.container as any)._hasEventListeners) return;
+        (this.container as any)._hasEventListeners = true;
+
         this.container.addEventListener('cell-content-changed', () => this.syncToServer());
         this.container.addEventListener('cell-height-changed', () => {
             if (typeof sendHeight === 'function') requestAnimationFrame(sendHeight);
