@@ -264,7 +264,7 @@
                         config.kernelType = urlKernelType;
                     }
 
-                    window.notebookCore = new NotebookCore('notebook-container', config);
+                    window.notebookCore = new window.NotebookCore('notebook-container', config);
                     
                     if (content) {
                         const cells = window.notebookCore.deserializeFromFlat(content);
@@ -344,9 +344,11 @@
             });
         }
 
-        // Tell host we're ready for data
-        window.parent.postMessage({ type: 'WIDGET_READY' }, '*');
-        window.parent.postMessage({ type: 'REQUEST_CONTENT' }, '*');
+        // Tell host we're ready for data, but wait for modules to finish loading
+        window.addEventListener('DOMContentLoaded', () => {
+            window.parent.postMessage({ type: 'WIDGET_READY' }, '*');
+            window.parent.postMessage({ type: 'REQUEST_CONTENT' }, '*');
+        });
         
         initTimeout = setTimeout(() => {
             console.log("No host detected. Booting in Standalone Fallback mode.");
@@ -358,7 +360,7 @@
             
             document.getElementById('btn-share').classList.remove('hidden');
 
-            window.notebookCore = new NotebookCore('notebook-container', { isReadOnly: false });
+            window.notebookCore = new window.NotebookCore('notebook-container', { isReadOnly: false });
             
             let initialCode = '# %% [code]\nprint("Standalone Mode")';
             if (window.location.hash.startsWith('#c=')) {
