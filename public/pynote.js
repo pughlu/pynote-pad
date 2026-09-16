@@ -8,6 +8,25 @@
         } catch (e) { }
     }
 
+    function cleanTemplateContent(text) {
+        if (!text) return '';
+        let cleaned = text.replace(/^\s*\n/, '').replace(/\s+$/, '');
+        const lines = cleaned.split('\n');
+        let minIndent = Infinity;
+        for (const line of lines) {
+            if (line.trim().length > 0) {
+                const indentMatch = line.match(/^[ \t]*/);
+                if (indentMatch) {
+                    minIndent = Math.min(minIndent, indentMatch[0].length);
+                }
+            }
+        }
+        if (minIndent > 0 && minIndent !== Infinity) {
+            return lines.map(line => line.length >= minIndent ? line.substring(minIndent) : line).join('\n');
+        }
+        return cleaned;
+    }
+
     function initPyNoteEmbeds() {
         const targets = document.querySelectorAll('pynote:not([data-initialized]), [data-add-pynote-here="true"]:not([data-initialized])');
         if (targets.length === 0) return;
@@ -15,7 +34,7 @@
         targets.forEach(target => {
             target.setAttribute('data-initialized', 'true');
             
-            const initialContent = target.tagName.toLowerCase() === 'pynote' ? target.textContent.trim() : '';
+            const initialContent = target.tagName.toLowerCase() === 'pynote' ? cleanTemplateContent(target.textContent) : '';
             target.style.display = 'none';
 
             const wrapper = document.createElement('div');

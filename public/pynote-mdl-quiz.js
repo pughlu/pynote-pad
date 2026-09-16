@@ -38,10 +38,12 @@
   window.loadLMSWidgetManager = loadLMSWidgetManager;
 
   function applyLmsIntegration(embed, textarea, height, origin, starterCode) {
+    const showAnswerbox = embed.getAttribute('data-show-answerbox') === 'true';
+
     if (textarea && starterCode && !textarea.value) {
       textarea.value = starterCode;
     }
-    if (textarea) {
+    if (textarea && !showAnswerbox) {
       textarea.style.position = 'absolute';
       textarea.style.left = '-9999px';
       textarea.style.opacity = '0';
@@ -99,6 +101,25 @@
     loadLMSWidgetManager();
   }
 
+  function cleanTemplateContent(text) {
+    if (!text) return '';
+    let cleaned = text.replace(/^\s*\n/, '').replace(/\s+$/, '');
+    const lines = cleaned.split('\n');
+    let minIndent = Infinity;
+    for (const line of lines) {
+      if (line.trim().length > 0) {
+        const indentMatch = line.match(/^[ \t]*/);
+        if (indentMatch) {
+          minIndent = Math.min(minIndent, indentMatch[0].length);
+        }
+      }
+    }
+    if (minIndent > 0 && minIndent !== Infinity) {
+      return lines.map(line => line.length >= minIndent ? line.substring(minIndent) : line).join('\n');
+    }
+    return cleaned;
+  }
+
   function initEmbeds() {
     const embedTargets = document.querySelectorAll('pynote:not([data-initialized]), [data-add-pynote-here="true"]:not([data-initialized])');
     if (embedTargets.length === 0) return;
@@ -124,7 +145,7 @@
         if (attr.name !== 'data-initialized') embed.setAttribute(attr.name, attr.value);
       });
       
-      const starterCode = target.tagName.toLowerCase() === 'pynote' ? target.textContent.trim() : '';
+      const starterCode = target.tagName.toLowerCase() === 'pynote' ? cleanTemplateContent(target.textContent) : '';
       embed._starterCode = starterCode;
       
       target.parentNode.insertBefore(embed, target);

@@ -66,7 +66,7 @@ class NotebookFormatConverter {
                 continue; 
             }
 
-            const markerMatch = line.match(/^#\s*%%(.*)$/);
+            const markerMatch = line.match(/^\s*#\s*%%(.*)$/);
             
             if (markerMatch) {
                 if (currentCell) {
