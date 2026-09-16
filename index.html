@@ -242,8 +242,8 @@
                 }
 
                 case 'SYNC_ACK': {
-                    const ackPayload = msg.payload || {};
-                    if (ackPayload.msgId === pendingSyncId) {
+                    const ackMsgId = msg.msgId || (msg.payload && msg.payload.msgId);
+                    if (ackMsgId === pendingSyncId) {
                         clearTimeout(syncTimeout);
                     }
                     break;

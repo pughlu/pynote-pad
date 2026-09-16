@@ -41,6 +41,15 @@
             wrapper.className = 'pynote-widget-mount-point';
             wrapper.style.cssText = 'position: relative; background: #f8fafc; border-radius: 4px; border: 2px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; min-height: 250px; width: 100%; margin-top: 10px; margin-bottom: 10px;';
             
+            Array.from(target.attributes).forEach(attr => {
+                if (attr.name !== 'data-initialized') wrapper.setAttribute(attr.name, attr.value);
+            });
+            
+            // Reset potentially hiding styles inherited from the template tag
+            wrapper.style.display = 'block';
+            wrapper.style.whiteSpace = 'normal';
+            wrapper.style.fontFamily = 'initial';
+
             // Allow override of config via attributes
             const config = {
                 showTopBar: target.getAttribute('data-show-top-bar') !== 'false',

@@ -149,6 +149,11 @@
         if (attr.name !== 'data-initialized') embed.setAttribute(attr.name, attr.value);
       });
       
+      // Reset potentially hiding styles inherited from the template tag
+      embed.style.display = 'block';
+      embed.style.whiteSpace = 'normal';
+      embed.style.fontFamily = 'initial';
+      
       const starterCode = target.tagName.toLowerCase() === 'pynote' ? cleanTemplateContent(target.textContent) : '';
       embed._starterCode = starterCode;
       
