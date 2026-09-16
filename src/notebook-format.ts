@@ -7,9 +7,11 @@ class NotebookFormatConverter {
             const data = typeof cell.toJSON === 'function' ? cell.toJSON() : cell;
             const type = data.type;
             
-            const metaObj: any = {};
+            const metaObj: any = { ...data.metadata };
             if (data.isLocked) metaObj.locked = true;
+            else delete metaObj.locked;
             if (data.isHidden) metaObj.hidden = true;
+            else delete metaObj.hidden;
             if (type === 'code') metaObj.lang = 'python';
 
             const metaStr = Object.keys(metaObj).length > 0 ? ` ${JSON.stringify(metaObj)}` : '';
@@ -93,12 +95,14 @@ class NotebookFormatConverter {
                 const typeMatch = metaRaw.match(/\[([a-zA-Z]+)\]/);
                 if (typeMatch) type = typeMatch[1];
                 
+                let parsedMeta = {};
                 const jsonMatch = metaRaw.match(/({.*})/);
                 if (jsonMatch) {
                     try {
                         const metaObj = JSON.parse(jsonMatch[1].replace(/'/g, '"'));
                         if (metaObj.locked) isLocked = true;
                         if (metaObj.hidden) isHidden = true;
+                        parsedMeta = metaObj;
                     } catch (e) {
                         console.warn("PyNote Parser: Invalid JSON metadata ->", jsonMatch[1]);
                     }
@@ -109,7 +113,7 @@ class NotebookFormatConverter {
                     isLocked = true;
                 }
                 
-                currentCell = { type, lines: [], isLocked, isHidden, isEditing: false };
+                currentCell = { type, lines: [], isLocked, isHidden, isEditing: false, metadata: parsedMeta };
             } else {
                 if (!currentCell) {
                     currentCell = { type: 'code', lines: [], isLocked: false, isHidden: false, isEditing: false };

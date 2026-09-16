@@ -234,6 +234,27 @@
                     <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="config-nomove" class="w-4 h-4 text-blue-600 rounded"><span>Disable Cell Movement</span></label>
                 </div>
             </div>
+            
+            <div class="px-3 py-2 border-y border-slate-200 bg-slate-50 font-semibold text-xs text-slate-500 uppercase tracking-wider shrink-0 mt-2">
+                Cell Config <span id="cell-config-indicator" class="text-[10px] ml-2 px-1.5 py-0.5 bg-slate-200 rounded-sm text-slate-600">None</span>
+            </div>
+            
+            <div id="cell-config-panel" class="p-4 flex flex-col gap-4 text-sm overflow-y-auto opacity-50 pointer-events-none transition-opacity">
+                <div class="text-xs text-slate-500 mb-2">Select a cell in the editor to configure it.</div>
+                
+                <div class="flex flex-col gap-2.5">
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="cell-config-locked" onchange="applyCellConfig()" class="w-4 h-4 text-blue-600 rounded"><span class="font-medium text-slate-700">Locked</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="cell-config-hidden" onchange="applyCellConfig()" class="w-4 h-4 text-blue-600 rounded"><span class="font-medium text-slate-700">Hidden</span></label>
+                </div>
+                
+                <hr class="border-slate-100">
+                
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Custom Metadata (JSON)</label>
+                    <textarea id="cell-config-metadata" onchange="applyCellConfig()" placeholder='{"tags": ["autograder"]}' class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-mono rounded p-2 min-h-[100px] resize-y outline-none focus:ring-1 focus:ring-blue-500"></textarea>
+                    <div class="text-[10px] text-slate-400 mt-1">Must be valid JSON formatting.</div>
+                </div>
+            </div>
         </aside>
 
     </div>
@@ -273,6 +294,7 @@
         };
         let activeFileName = 'untitled';
         let currentViewMode = 'visual'; // 'visual', 'flatfile', 'jupyter'
+        let activeCellIndex = -1;
 
         let currentOptions = {
             showTopBar: true, kernelType: 'skulpt', autocompleteMode: 'custom', showShareButton: false, lockKernel: false,
@@ -420,6 +442,85 @@
             updateFileListUI();
             updateTabBarUI();
         }
+
+        // --- 4.5. CELL SELECTION & CONFIG LOGIC ---
+        function handleCellFocus(e) {
+            const cellWrapper = e.target.closest('.cell-wrapper');
+            if (!cellWrapper || !cellWrapper.parentNode) return;
+            
+            const children = Array.from(cellWrapper.parentNode.children);
+            const index = children.indexOf(cellWrapper);
+            if (index !== -1 && index !== activeCellIndex) {
+                activeCellIndex = index;
+                updateRhsCellPanel();
+            }
+        }
+
+        function updateRhsCellPanel() {
+            const panel = document.getElementById('cell-config-panel');
+            const indicator = document.getElementById('cell-config-indicator');
+            
+            if (activeCellIndex === -1) {
+                panel.classList.add('opacity-50', 'pointer-events-none');
+                indicator.innerText = "None";
+                document.getElementById('cell-config-locked').checked = false;
+                document.getElementById('cell-config-hidden').checked = false;
+                document.getElementById('cell-config-metadata').value = '';
+                return;
+            }
+            
+            const cells = window.NotebookFormatConverter.deserializeFromFlat(virtualFS[activeFileName] || '');
+            const cell = cells[activeCellIndex];
+            if (!cell) return;
+            
+            panel.classList.remove('opacity-50', 'pointer-events-none');
+            indicator.innerText = `Cell #${activeCellIndex + 1}`;
+            
+            document.getElementById('cell-config-locked').checked = !!cell.isLocked;
+            document.getElementById('cell-config-hidden').checked = !!cell.isHidden;
+            
+            // Clean up internal metadata keys before displaying generic metadata
+            const cleanMeta = { ...(cell.metadata || {}) };
+            delete cleanMeta.locked;
+            delete cleanMeta.hidden;
+            delete cleanMeta.lang;
+            
+            document.getElementById('cell-config-metadata').value = Object.keys(cleanMeta).length > 0 ? JSON.stringify(cleanMeta, null, 2) : '';
+        }
+
+        window.applyCellConfig = function() {
+            if (activeCellIndex === -1) return;
+            
+            const isLocked = document.getElementById('cell-config-locked').checked;
+            const isHidden = document.getElementById('cell-config-hidden').checked;
+            const rawMeta = document.getElementById('cell-config-metadata').value.trim();
+            
+            let customMeta = {};
+            if (rawMeta) {
+                try {
+                    customMeta = JSON.parse(rawMeta);
+                } catch (e) {
+                    // Invalid JSON, don't apply anything and wait for them to fix it
+                    return;
+                }
+            }
+            
+            const cells = window.NotebookFormatConverter.deserializeFromFlat(virtualFS[activeFileName] || '');
+            if (!cells[activeCellIndex]) return;
+            
+            cells[activeCellIndex].isLocked = isLocked;
+            cells[activeCellIndex].isHidden = isHidden;
+            cells[activeCellIndex].metadata = customMeta;
+            
+            // Serialize back to flatfile string
+            virtualFS[activeFileName] = window.NotebookFormatConverter.serializeToFlat(cells);
+            
+            // We must re-render the workspace to apply the lock/hidden visually,
+            // but we use a short timeout to let the input events resolve first
+            setTimeout(() => {
+                if (syncCurrentState()) renderWorkspace();
+            }, 10);
+        };
 
         // --- 5. UI GENERATORS ---
 
@@ -582,10 +683,7 @@
                 questionMode: 'data-question-mode',
                 lockKernel: 'data-lock-kernel',
                 isReadOnly: 'data-read-only',
-                lockAllMarkdown: 'data-lock-markdown',
-                disableInsertAll: 'data-disable-insert-all',
-                disableDelete: 'data-disable-delete',
-                disableMove: 'data-disable-move'
+                lockAllMarkdown: 'data-lock-markdown'
             };
 
             let attrs = 'style="white-space: pre-wrap; font-family: monospace;"';
