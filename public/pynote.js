@@ -56,7 +56,8 @@
                 kernelType: target.getAttribute('data-kernel-type') || "skulpt",
                 autocompleteMode: target.getAttribute('data-autocomplete-mode') || "custom",
                 questionMode: target.getAttribute('data-question-mode') !== 'false',
-                showShareButton: target.getAttribute('data-show-share-button') === 'true'
+                showShareButton: target.getAttribute('data-show-share-button') === 'true',
+                disableInsertAll: target.getAttribute('data-disable-insert-all') === 'true'
             };
 
             const params = new URLSearchParams();
