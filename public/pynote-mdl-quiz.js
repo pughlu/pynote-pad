@@ -65,9 +65,11 @@
     }
     
     // Set custom config attributes on the container for the LMS Widget Manager to pass down
-    if (embed.hasAttribute('data-show-share-button')) container.setAttribute('data-show-share-button', embed.getAttribute('data-show-share-button'));
-    if (embed.hasAttribute('data-show-top-bar')) container.setAttribute('data-show-top-bar', embed.getAttribute('data-show-top-bar'));
+    const showShareBtn = embed.hasAttribute('data-show-share-button') ? embed.getAttribute('data-show-share-button') : 'false';
+    const showTopBar = embed.hasAttribute('data-show-top-bar') ? embed.getAttribute('data-show-top-bar') : 'true';
     
+    container.setAttribute('data-show-share-button', showShareBtn);
+    container.setAttribute('data-show-top-bar', showTopBar);
     container.style.position = 'relative';
     container.style.width = '100%';
     container.style.height = (height || 400) + 'px';
