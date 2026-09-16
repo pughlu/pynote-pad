@@ -528,6 +528,7 @@ class NotebookCore {
             autoClearOutputOnEdit: true,
             showTopBar: false,
             lockAllMarkdown: false,
+            lockKernel: false,
             disableTypeChange: false,
             layout: 'inline',
             autocompleteMode: 'custom'
@@ -564,7 +565,16 @@ class NotebookCore {
         }
         
         const selector = document.getElementById('kernel-selector');
-        if (selector) (selector as any).value = this.options.kernelType;
+        if (selector) {
+            (selector as any).value = this.options.kernelType;
+            if (this.options.lockKernel) {
+                (selector as HTMLSelectElement).disabled = true;
+                selector.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                (selector as HTMLSelectElement).disabled = false;
+                selector.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
 
         this.initKernel();
         this.setupEventListeners();
@@ -587,6 +597,7 @@ class NotebookCore {
 
     // --- NEW: Live Switcher Logic ---
     switchKernel(newType) {
+        if (this.options.lockKernel) return;
         if (this.options.kernelType === newType) return;
         this.options.kernelType = newType;
         

@@ -28,6 +28,7 @@ interface NotebookConfig {
     autoClearOutputOnEdit?: boolean;
     showTopBar?: boolean;
     lockAllMarkdown?: boolean;
+    lockKernel?: boolean;
     disableTypeChange?: boolean;
     layout?: string;
     autocompleteMode?: string;
