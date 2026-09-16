@@ -146,6 +146,19 @@
         if (urlParams.get('shareBtn') === '1') {
             document.getElementById('btn-share').classList.remove('hidden');
         }
+        
+        let urlKernelType = null;
+        if (urlParams.has('kernel')) {
+            urlKernelType = urlParams.get('kernel');
+            const kernelSelect = document.getElementById('kernel-selector');
+            if (kernelSelect) {
+                kernelSelect.value = urlKernelType;
+                if (urlParams.get('lockKernel') === '1') {
+                    kernelSelect.disabled = true;
+                    kernelSelect.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+        }
 
         const lockWidget = (message = "Widget disconnected") => { 
             if (isStandaloneFallback) return;
@@ -247,6 +260,10 @@
                         config.isReadOnly = true;
                     }
                     
+                    if (urlKernelType) {
+                        config.kernelType = urlKernelType;
+                    }
+
                     window.notebookCore = new NotebookCore('notebook-container', config);
                     
                     if (content) {

@@ -90,11 +90,16 @@
     iframe.style.borderRadius = '8px';
     iframe.style.overflow = 'hidden';
 
-    // The widget manager protocol is designed to initialize via LMS messaging,
-    // so we just point it at the index.html and let the LMS widget manager do the handshake.
     const params = new URLSearchParams();
     if (showTopBar === 'true') params.append('topBar', '1');
     if (showShareBtn === 'true') params.append('shareBtn', '1');
+    
+    const kernelType = embed.getAttribute('data-kernel') || '';
+    if (kernelType) params.append('kernel', kernelType);
+    
+    const lockKernel = embed.getAttribute('data-lock-kernel') === 'true';
+    if (lockKernel) params.append('lockKernel', '1');
+
     iframe.src = `${origin}/index.html?${params.toString()}`;
 
     iframe.onload = () => {

@@ -59,12 +59,22 @@
                 showShareButton: target.getAttribute('data-show-share-button') === 'true'
             };
 
+            const params = new URLSearchParams();
+            if (config.showTopBar) params.append('topBar', '1');
+            if (config.showShareButton) params.append('shareBtn', '1');
+            
+            const kernelTypeAttr = target.getAttribute('data-kernel') || target.getAttribute('data-kernel-type') || '';
+            if (kernelTypeAttr) params.append('kernel', kernelTypeAttr);
+            
+            const lockKernelAttr = target.getAttribute('data-lock-kernel') === 'true';
+            if (lockKernelAttr) params.append('lockKernel', '1');
+
             wrapper.innerHTML = `
                 <span class="widget-placeholder" style="color: #64748b; font-family: monospace; font-weight: bold; font-size: 1.1rem;">
                     Loading PyNote...
                 </span>
                 <iframe style="position: absolute; inset: 0; width: 100%; height: 100%; display: block; border: none; opacity: 0; transition: opacity 0.3s ease-in;" 
-                        src="${defaultOrigin}/index.html"></iframe>
+                        src="${defaultOrigin}/index.html?${params.toString()}"></iframe>
             `;
 
             target.parentNode.insertBefore(wrapper, target.nextSibling);
