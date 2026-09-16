@@ -331,9 +331,9 @@ class CodeCellElement extends BaseNotebookCell {
             this.applyHysteresis();
             this.dispatchAction('cell-content-changed'); 
             
-            // Jupyter-style Auto-Insert: Check if it is STILL the last cell
+            // Jupyter-style Auto-Insert: Check if it is STILL the last cell AND not empty
             const coreConfig = (window.notebookCore && window.notebookCore.options) || {};
-            if (!this.nextElementSibling && !coreConfig.isReadOnly && !coreConfig.disableInsertAll) {
+            if (!this.nextElementSibling && this.content.trim() !== '' && !coreConfig.isReadOnly && !coreConfig.disableInsertAll) {
                 this.dispatchAction('cell-insert-below');
             }
             

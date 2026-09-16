@@ -67,7 +67,7 @@
                     type: 'LOAD_CONTENT',
                     payload: {
                         content: initialContent,
-                        config: config
+                        config: Object.assign({}, config, { originalTemplate: initialContent })
                     }
                 }, '*');
                 

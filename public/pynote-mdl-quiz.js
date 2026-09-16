@@ -70,6 +70,8 @@
     
     container.setAttribute('data-show-share-button', showShareBtn);
     container.setAttribute('data-show-top-bar', showTopBar);
+    if (starterCode) container.setAttribute('data-original-template', starterCode);
+    
     container.style.position = 'relative';
     container.style.width = '100%';
     container.style.height = (height || 400) + 'px';
