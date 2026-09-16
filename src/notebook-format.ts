@@ -25,7 +25,13 @@ class NotebookFormatConverter {
         // 1. Join cells with exactly one blank line (\n\n) as a structural spacer.
         // 2. Wrap the entire payload in boundary markers to prevent the browser's 
         //    <pre> innerText from stripping trailing newlines off the final cell.
-        return '# %% [pynote-start]\n' + serializedCells.join('\n\n') + '\n# %% [pynote-end]';
+        
+        let headerStr = '# %% [pynote-start]\n';
+        if (cells.globalConfig && Object.keys(cells.globalConfig).length > 0) {
+            headerStr += `# %% [config]\n"""\n${JSON.stringify(cells.globalConfig, null, 2)}\n"""\n\n`;
+        }
+        
+        return headerStr + serializedCells.join('\n\n') + '\n# %% [pynote-end]';
     }
 
     /**
@@ -55,7 +61,8 @@ class NotebookFormatConverter {
         }
         
         const rawLines = safePayload.split(/\r?\n/);
-        const cells = [];
+        const cells: any = [];
+        let globalConfig = null;
         let currentCell = null;
         
         for (let i = 0; i < rawLines.length; i++) {
@@ -117,15 +124,29 @@ class NotebookFormatConverter {
         }
         
         // --- The Cleanup Phase ---
-        cells.forEach(c => {
-            if (c.type === 'markdown' || c.type === 'text') {
+        const finalCells: any = [];
+        cells.forEach((c: any) => {
+            if (c.type === 'markdown' || c.type === 'text' || c.type === 'config') {
                 c.content = c.content.replace(/^\s*"""\s*\n?/, '').replace(/\n?\s*"""\s*$/, '');
                 c.content = c.content.replace(/\n+$/, ''); 
             }
-            delete c.lines; 
+            
+            if (c.type === 'config') {
+                try {
+                    globalConfig = JSON.parse(c.content);
+                } catch (e) {
+                    console.warn("PyNote Parser: Invalid global config JSON block", e);
+                }
+            } else {
+                delete c.lines; 
+                finalCells.push(c);
+            }
         });
         
-        return cells.length ? cells : [{ type: 'code', content: safePayload }];
+        const result: any = finalCells.length ? finalCells : [{ type: 'code', content: safePayload }];
+        if (globalConfig) result.globalConfig = globalConfig;
+        
+        return result;
     }
 }
 

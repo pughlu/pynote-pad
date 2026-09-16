@@ -685,8 +685,15 @@ class NotebookCore {
         this.initKernel();
     }
 
-    loadData(cellDataArray) {
+    loadData(cellDataArray: any) {
         this.container.innerHTML = '';
+        
+        // Merge file-level config into options.
+        // Existing options (widget/HTML config) take precedence over the file config.
+        if (cellDataArray.globalConfig) {
+            this.options = { ...cellDataArray.globalConfig, ...this.options };
+        }
+        
         cellDataArray.forEach(data => {
             this.container.appendChild(this.createCellElement(data));
         });
@@ -751,8 +758,10 @@ class NotebookCore {
     }
 
     serializeToFlat() {
-        const cells = this.toJSON();
-        return window.NotebookFormatConverter.serializeToFlat(cells);
+        const cells: any = this.toJSON();
+        // Export the active configuration so the resulting flatfile is self-contained
+        cells.globalConfig = { ...this.options };
+        return (window as any).NotebookFormatConverter.serializeToFlat(cells);
     }
 
     deserializeFromFlat(payload) {
