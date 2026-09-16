@@ -70,6 +70,9 @@ class CodeCellElement extends BaseNotebookCell {
             
             if (cm6.basicSetup) customExtensions.push(cm6.basicSetup);
             
+            // Apply PyNote custom theme
+            if (cm6.pynoteTheme) customExtensions.push(cm6.pynoteTheme);
+
             if (typeof cm6.python === 'function') {
                 customExtensions.push(cm6.python());
             }
@@ -81,8 +84,10 @@ class CodeCellElement extends BaseNotebookCell {
                 customExtensions.push(cm6.EditorState.tabSize.of(4));
             }
 
-            // Failsafe autocomplete since we didn't migrate getAutocompleteExtensions
-            if (cm6.keymap && cm6.indentMore && cm6.indentLess) {
+            // The custom autocomplete router
+            if (typeof cm6.getAutocompleteExtensions === 'function') {
+                customExtensions.push(...cm6.getAutocompleteExtensions(acMode));
+            } else if (cm6.keymap && cm6.indentMore && cm6.indentLess) {
                 customExtensions.push(cm6.keymap.of([
                     { key: "Tab", run: cm6.indentMore },
                     { key: "Shift-Tab", run: cm6.indentLess }
@@ -283,6 +288,11 @@ class CodeCellElement extends BaseNotebookCell {
     }
 
     async handleActionClick() {
+        this.content = this.editorView ? this.editorView.state.doc.toString() : this.content;
+        if (!this.content || this.content.trim() === '') {
+            return;
+        }
+
         // 1. EXECUTION LOCK: Prevent double-clicks or rapid Shift+Enters from running twice!
         if (this.isExecuting) return;
         this.isExecuting = true;
@@ -295,8 +305,6 @@ class CodeCellElement extends BaseNotebookCell {
             this.isExecuting = false; // Release lock
             return;
         }
-        
-        this.content = this.editorView ? this.editorView.state.doc.toString() : this.content;
         
         this.setButtonState('running');
         this.outputWrapper.classList.remove('hidden');

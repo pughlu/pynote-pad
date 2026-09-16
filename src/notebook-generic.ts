@@ -682,6 +682,8 @@ class NotebookCore {
         for (const cell of cells) {
             if (cell.tagName.toLowerCase() === 'notebook-code-cell') {
                 if ((cell as any).refresh) (cell as any).refresh();
+                const content = (cell as any).editorView ? (cell as any).editorView.state.doc.toString() : (cell as any).content;
+                if (!content || content.trim() === '') continue;
                 if ((cell as any).handleActionClick) await (cell as any).handleActionClick();
             }
         }
