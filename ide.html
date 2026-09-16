@@ -429,21 +429,71 @@
                 const isActive = fileName === activeFileName;
                 const tab = document.createElement('div');
                 tab.className = `flex items-center px-4 py-1.5 text-sm cursor-pointer select-none border-t border-x rounded-t-lg transition-colors ${isActive ? 'bg-white border-slate-300 text-blue-600 font-medium translate-y-px z-10' : 'bg-slate-100 border-transparent text-slate-500 hover:bg-slate-50 border-b border-b-slate-300'}`;
-                tab.innerHTML = `<svg class="w-4 h-4 mr-1.5 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> ${fileName}`;
+                tab.innerHTML = `<svg class="w-4 h-4 mr-1.5 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> 
+                                 <span class="flex-1 truncate" ondblclick="event.stopPropagation(); startInlineRename(this, '${fileName}')">${fileName}</span>`;
                 tab.onclick = () => switchFile(fileName);
                 tabBar.appendChild(tab);
             });
         }
 
-        window.renameFile = function(oldName) {
-            const newName = prompt("Enter new name for file (without extension):", oldName);
-            if (!newName || newName === oldName) return;
-            if (virtualFS[newName]) { alert("A file with this name already exists!"); return; }
-            virtualFS[newName] = virtualFS[oldName];
-            delete virtualFS[oldName];
-            if (activeFileName === oldName) activeFileName = newName;
-            updateFileListUI();
-            updateTabBarUI();
+        window.startInlineRename = function(spanElement, oldName) {
+            if (spanElement.querySelector('input')) return; // Already editing
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = oldName;
+            input.className = 'w-full bg-white border border-blue-400 outline-none px-1 rounded text-slate-800 focus:ring-2 focus:ring-blue-500 font-sans';
+            
+            // Adjust styling so it doesn't break layout
+            input.style.minWidth = '50px';
+            input.style.maxWidth = '150px';
+            input.style.height = '20px';
+
+            spanElement.innerHTML = '';
+            spanElement.appendChild(input);
+            input.focus();
+            input.select();
+
+            let isFinished = false;
+
+            function finishRename(save) {
+                if (isFinished) return;
+                isFinished = true;
+                if (save) {
+                    const newName = input.value.trim();
+                    if (newName && newName !== oldName) {
+                        if (virtualFS[newName]) {
+                            alert("A file with this name already exists!");
+                            spanElement.innerHTML = oldName;
+                        } else {
+                            virtualFS[newName] = virtualFS[oldName];
+                            delete virtualFS[oldName];
+                            if (activeFileName === oldName) activeFileName = newName;
+                            updateFileListUI();
+                            updateTabBarUI();
+                            return; // Re-rendered, exit early
+                        }
+                    } else {
+                        spanElement.innerHTML = oldName;
+                    }
+                } else {
+                    spanElement.innerHTML = oldName;
+                }
+            }
+
+            input.onblur = () => finishRename(true);
+            input.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    finishRename(true);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    finishRename(false);
+                }
+            };
+            
+            input.onclick = (e) => e.stopPropagation();
+            input.ondblclick = (e) => e.stopPropagation();
         };
 
         function updateFileListUI() {
@@ -454,7 +504,7 @@
                 const btn = document.createElement('button');
                 btn.className = `w-full text-left px-3 py-1.5 rounded text-sm truncate transition-colors flex items-center gap-2 ${isActive ? 'bg-blue-100 text-blue-700 font-medium' : 'hover:bg-slate-100 text-slate-600'}`;
                 btn.innerHTML = `<svg class="w-4 h-4 shrink-0 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                 <span class="flex-1 truncate cursor-text" onclick="event.stopPropagation(); renameFile('${fileName}')" title="Click to edit name">${fileName}</span>`;
+                                 <span class="flex-1 truncate cursor-text" ondblclick="event.stopPropagation(); startInlineRename(this, '${fileName}')" title="Double click to rename">${fileName}</span>`;
                 btn.onclick = () => switchFile(fileName);
                 listEl.appendChild(btn);
             });
