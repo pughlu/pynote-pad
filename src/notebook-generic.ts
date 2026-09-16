@@ -173,6 +173,8 @@ class SkulptKernel {
     maxOutputChars!: number;
     currentOutputCount!: number;
     isKilled!: boolean;
+    executionHistory!: string[];
+    capturingOutput!: boolean;
 
     constructor(options: any = {}) {
         this.isReady = false;
@@ -180,6 +182,12 @@ class SkulptKernel {
         this.maxOutputChars = options.maxOutputChars || 50000;
         this.currentOutputCount = 0;
         this.isKilled = false;
+        this.executionHistory = [];
+        this.capturingOutput = true;
+    }
+
+    restart() {
+        this.executionHistory = [];
     }
 
     async init(statusCallback) {
@@ -227,8 +235,23 @@ class SkulptKernel {
         this.currentOutputCount = 0;
         this.isKilled = false;
 
+        const historyCode = this.executionHistory.join('\n');
+        const historyLines = historyCode ? historyCode.split('\n').length + 1 : 0; // +1 for the separator
+        this.capturingOutput = historyCode === '';
+
         Sk.configure({
-            output: (text) => this.writeOutput(text, 'text-slate-700'),
+            output: (text) => {
+                if (!this.capturingOutput) {
+                    if (text.includes("___BEGIN_OUTPUT___")) {
+                        this.capturingOutput = true;
+                        text = text.replace("___BEGIN_OUTPUT___", "");
+                        if (!text) return;
+                    } else {
+                        return;
+                    }
+                }
+                this.writeOutput(text, 'text-slate-700');
+            },
             read: (x) => {
                 if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined) throw "File not found: '" + x + "'";
                 return Sk.builtinFiles["files"][x];
@@ -293,24 +316,40 @@ except BaseException:
                 }
             }
         }
+        
+        if (historyCode) {
+            executableCode = historyCode + '\nprint("___BEGIN_OUTPUT___", end="")\n' + executableCode;
+        }
 
         try {
             await Sk.misceval.asyncToPromise(() => Sk.importMainWithBody("<stdin>", false, executableCode, true));
+            if (code.trim()) {
+                const indentedCode = code.split('\n').map(line => '    ' + line).join('\n');
+                this.executionHistory.push(`try:\n${indentedCode}\nexcept BaseException:\n    pass`);
+            }
         } catch (err) {
             if (this.isKilled) throw new Error(`Execution stopped: Output exceeded maximum limit.`);
             
             let errStr = err.toString();
+            let isSyntaxError = errStr.includes("SyntaxError") || errStr.includes("IndentationError") || errStr.includes("TabError") || errStr.includes("ParseError");
+            
+            if (!isSyntaxError && code.trim()) {
+                const indentedCode = code.split('\n').map(line => '    ' + line).join('\n');
+                this.executionHistory.push(`try:\n${indentedCode}\nexcept BaseException:\n    pass`);
+            }
+
             // Map the injected lines back to the original line numbers
             errStr = errStr.replace(/(?:on\s+<stdin>\s+on\s+line\s+|on\s+line\s+|line\s+)(\d+)/g, (match, lineNumStr) => {
                 let lineNum = parseInt(lineNumStr, 10);
                 if (isWrapped && lastCodeIndex !== -1) {
-                    const wrappedStart = lastCodeIndex + 1;
+                    const wrappedStart = lastCodeIndex + 1 + historyLines;
                     if (lineNum >= wrappedStart && lineNum <= wrappedStart + 6) {
                         lineNum = wrappedStart;
                     } else if (lineNum > wrappedStart + 6) {
                         lineNum = lineNum - 6;
                     }
                 }
+                lineNum = Math.max(1, lineNum - historyLines);
                 return "on line " + lineNum;
             });
             
@@ -730,6 +769,9 @@ class NotebookCore {
     }
 
     async runAll() {
+        if (this.kernel && typeof (this.kernel as any).restart === 'function') {
+            (this.kernel as any).restart();
+        }
         const cells = Array.from(this.container.children);
         for (const cell of cells) {
             if (cell.tagName.toLowerCase() === 'notebook-code-cell') {
