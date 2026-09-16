@@ -1,5 +1,13 @@
 import * as cm6 from './cm6';
 
+const CELL_MESSAGES = {
+    outputLabel: "output",
+    toggleExpansion: "Toggle Expansion",
+    clearOutput: "clear output",
+    scrollTop: "Scroll to top",
+    scrollBottom: "Scroll to bottom"
+};
+
 class CodeCellElement extends BaseNotebookCell {
     output!: string;
     editorWrap!: HTMLDivElement;
@@ -158,12 +166,12 @@ class CodeCellElement extends BaseNotebookCell {
         outHeader.className = 'cell-toolbar absolute -top-1.5 z-30 flex items-center gap-1 bg-white shadow-sm border border-slate-200 rounded-md px-1.5 py-0.5 opacity-0 group-hover/output:opacity-100 transition-opacity text-xs';
         
         outHeader.innerHTML = `
-            <div class="relative flex items-center justify-center rounded text-slate-500 font-medium px-1 cursor-default pointer-events-none"><span>output</span></div>
-            <button class="expand-btn hidden text-slate-400 hover:text-blue-500 p-0.5 rounded transition-colors ml-0.5 border-l border-slate-200 pl-1 flex items-center gap-1" title="Toggle Expansion">
+            <div class="relative flex items-center justify-center rounded text-slate-500 font-medium px-1 cursor-default pointer-events-none"><span>${CELL_MESSAGES.outputLabel}</span></div>
+            <button class="expand-btn hidden text-slate-400 hover:text-blue-500 p-0.5 rounded transition-colors ml-0.5 border-l border-slate-200 pl-1 flex items-center gap-1" title="${CELL_MESSAGES.toggleExpansion}">
                 <svg class="w-3 h-3 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7-7"></path></svg>
                 <span class="btn-text font-medium tracking-tight"></span>
             </button>
-            <button class="text-slate-400 hover:text-red-500 p-0.5 rounded transition-colors ml-0.5 border-l border-slate-200 pl-1 clear-btn" title="clear output">
+            <button class="text-slate-400 hover:text-red-500 p-0.5 rounded transition-colors ml-0.5 border-l border-slate-200 pl-1 clear-btn" title="${CELL_MESSAGES.clearOutput}">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
             </button>
         `;
@@ -175,12 +183,12 @@ class CodeCellElement extends BaseNotebookCell {
         
         this.topShadow = document.createElement('div');
         this.topShadow.className = 'absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white via-white/80 to-transparent opacity-0 transition-opacity z-10 pointer-events-none flex items-start justify-center';
-        this.topShadow.innerHTML = `<div class="pointer-events-auto cursor-pointer group/topshadow px-4 py-1" title="Scroll to top"><svg class="w-4 h-4 text-slate-400 group-hover/topshadow:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"></path></svg></div>`;
+        this.topShadow.innerHTML = `<div class="pointer-events-auto cursor-pointer group/topshadow px-4 py-1" title="${CELL_MESSAGES.scrollTop}"><svg class="w-4 h-4 text-slate-400 group-hover/topshadow:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"></path></svg></div>`;
         this.topShadow.querySelector('div').onclick = () => this.outputContent.scrollTo({ top: 0, behavior: 'smooth' });
         
         this.bottomShadow = document.createElement('div');
         this.bottomShadow.className = 'absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white via-white/80 to-transparent opacity-0 transition-opacity z-10 pointer-events-none flex items-end justify-center';
-        this.bottomShadow.innerHTML = `<div class="pointer-events-auto cursor-pointer group/botshadow px-4 py-1" title="Scroll to bottom"><svg class="w-4 h-4 text-slate-400 group-hover/botshadow:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg></div>`;
+        this.bottomShadow.innerHTML = `<div class="pointer-events-auto cursor-pointer group/botshadow px-4 py-1" title="${CELL_MESSAGES.scrollBottom}"><svg class="w-4 h-4 text-slate-400 group-hover/botshadow:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg></div>`;
         this.bottomShadow.querySelector('div').onclick = () => this.outputContent.scrollTo({ top: this.outputContent.scrollHeight, behavior: 'smooth' });
 
         this.outputContent = document.createElement('div');
@@ -318,8 +326,14 @@ class CodeCellElement extends BaseNotebookCell {
             await window.notebookCore.kernel.execute(this.content, this.outputContent);
             this.setButtonState('success');
             setTimeout(() => this.setButtonState('default'), 2000);
-        } catch (err) {
-            this.outputContent.innerHTML += `<span class="text-red-500 font-semibold mt-2 block">${err}</span>`;
+        } catch (err: any) {
+            let errStr = err.toString();
+            if (errStr.includes("Kernel restarted...")) {
+                await window.notebookCore.restartKernel();
+                this.outputWrapper.classList.remove('hidden');
+                this.outputWrapper.classList.add('flex');
+            }
+            this.outputContent.innerHTML += `<span class="text-red-500 font-semibold mt-2 block">${errStr}</span>`;
             this.setButtonState('default');
         } finally {
             this.output = this.outputContent.innerHTML;

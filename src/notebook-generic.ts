@@ -1,5 +1,5 @@
 window.MathJaxHelper = {
-    queue: function(el, onComplete, retries = 0) {
+    queue: function (el, onComplete, retries = 0) {
         if (window.MathJax && window.MathJax.typesetPromise) {
             window.MathJax.typesetPromise([el]).then(() => {
                 if (onComplete) onComplete();
@@ -7,14 +7,27 @@ window.MathJaxHelper = {
         } else if (retries < 10) {
             setTimeout(() => this.queue(el, onComplete, retries + 1), 300);
         } else {
-            console.warn("MathJax unavailable; skipping LaTeX typesetting.");
+            console.warn(USER_MESSAGES.mathjaxSkipped);
             if (onComplete) onComplete();
         }
     }
 };
 
 // --- GLOBAL CONFIGURATION ---
-const PYODIDE_CDN_URL = "https://cdn.jsdelivr.net/pyodide/v314.0.6/full/";
+const USER_MESSAGES = {
+    kernelStarting: "Starting...",
+    kernelLoadingPackages: "Loading Packages...",
+    kernelReady: "Ready",
+    kernelError: "Error",
+    kernelNotReady: "Kernel is not ready yet.",
+    skulptLoadFailed: "Failed to load Skulpt scripts",
+    fileNotFound: "File not found: ",
+    timeoutExceeded: "Cell runtime exceeded max limit (5s). Kernel restarted...",
+    outputExceeded: "Cell output exceeded max limit. Kernel restarted...",
+    mathjaxSkipped: "MathJax unavailable; skipping LaTeX typesetting."
+};
+
+const PYODIDE_CDN_URL = "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/";
 
 class PyodideWorkerKernel {
     isReady!: boolean;
@@ -31,21 +44,21 @@ class PyodideWorkerKernel {
     constructor(options: any = {}) {
         this.isReady = false;
         this.worker = null;
-        this.callbacks = {}; 
-        this.targetDivs = {}; 
+        this.callbacks = {};
+        this.targetDivs = {};
         this.currentOutputCounts = {};
-        
+
         this.options = options;
         this.widgetId = options.widgetId || Math.random().toString(36).substring(2, 10);
         this.maxOutputChars = options.maxOutputChars || 50000;
-        this.kernelMode = options.kernelMode || 'local'; 
+        this.kernelMode = options.kernelMode || 'local';
     }
 
-async init(statusCallback) {
+    async init(statusCallback) {
         // Store the callback so the handleMessage method can access it
         this.statusCallback = statusCallback;
         statusCallback('loading');
-        
+
         try {
             // 1. Kill any existing worker if we are re-initializing (tab switching)
             if (this.worker) {
@@ -59,13 +72,13 @@ async init(statusCallback) {
             this.worker.onmessage = (e) => this.handleMessage(e.data);
 
             // 4. THE MISSING PIECE: Tell the worker to start loading Pyodide!
-            this.worker.postMessage({ 
-                action: 'INIT', 
-                id: 'init', 
-                widgetId: this.widgetId, 
-                config: this.options 
+            this.worker.postMessage({
+                action: 'INIT',
+                id: 'init',
+                widgetId: this.widgetId,
+                config: this.options
             });
-            
+
         } catch (err) {
             console.error("Worker Initialization Error:", err);
             statusCallback('error');
@@ -77,7 +90,7 @@ async init(statusCallback) {
     writeOutput(id, text, classes) {
         const targetDiv = this.targetDivs[id];
         if (!targetDiv) return;
-        
+
         this.currentOutputCounts[id] = (this.currentOutputCounts[id] || 0) + text.length;
         if (this.currentOutputCounts[id] > this.maxOutputChars) {
             if (this.currentOutputCounts[id] - text.length <= this.maxOutputChars) {
@@ -98,9 +111,9 @@ async init(statusCallback) {
     injectSvg(id, svgData) {
         const targetDiv = this.targetDivs[id];
         if (!targetDiv) return;
-        
+
         const wrap = document.createElement('div');
-        wrap.className = 'inline-block bg-white my-2 p-2 rounded shadow-sm border border-slate-200'; 
+        wrap.className = 'inline-block bg-white my-2 p-2 rounded shadow-sm border border-slate-200';
         wrap.innerHTML = svgData;
         const svgEl = wrap.querySelector('svg');
         if (svgEl) { svgEl.style.maxWidth = '100%'; svgEl.style.height = 'auto'; }
@@ -113,9 +126,9 @@ async init(statusCallback) {
         if (type === 'status') {
             if (status === 'ready') this.isReady = true;
             if (status === 'error') this.isReady = false;
-            
+
             if (this.statusCallback) this.statusCallback(status);
-            
+
             if (status === 'ready' && this.callbacks[id]) {
                 this.callbacks[id].resolve();
                 delete this.callbacks[id];
@@ -126,7 +139,7 @@ async init(statusCallback) {
         if (type === 'stdout') this.writeOutput(id, text, 'text-slate-700');
         if (type === 'stderr') this.writeOutput(id, text, 'text-red-500 font-semibold');
         if (type === 'svg') this.injectSvg(id, data);
-        
+
         if (type === 'result') {
             const targetDiv = this.targetDivs[id];
             if (targetDiv) {
@@ -141,7 +154,7 @@ async init(statusCallback) {
             if (this.callbacks[id]) {
                 if (type === 'error') this.callbacks[id].reject(error);
                 else this.callbacks[id].resolve();
-                
+
                 delete this.callbacks[id];
                 delete this.targetDivs[id];
                 delete this.currentOutputCounts[id];
@@ -151,7 +164,7 @@ async init(statusCallback) {
 
     execute(code, targetDiv) {
         return new Promise((resolve, reject) => {
-            if (!this.isReady) return reject("Kernel is not ready yet.");
+            if (!this.isReady) return reject(USER_MESSAGES.kernelNotReady);
             const execId = this.generateId();
             this.callbacks[execId] = { resolve, reject };
             this.targetDivs[execId] = targetDiv;
@@ -192,19 +205,19 @@ class SkulptKernel {
 
     async init(statusCallback) {
         statusCallback('loading');
-        
+
         if (typeof Sk === 'undefined') {
             statusCallback('packages');
             try {
                 await this.loadScript("https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js");
                 await this.loadScript("https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js");
-            } catch(e) {
+            } catch (e) {
                 statusCallback('error');
-                console.error("Failed to load Skulpt scripts");
+                console.error(USER_MESSAGES.skulptLoadFailed);
                 return;
             }
         }
-        
+
         this.isReady = true;
         statusCallback('ready');
     }
@@ -222,11 +235,11 @@ class SkulptKernel {
         this.currentOutputCount += text.length;
         if (this.currentOutputCount > this.maxOutputChars) {
             this.isKilled = true;
-            throw new Error(`Output limit exceeded`);
+            throw new Error(USER_MESSAGES.outputExceeded);
         }
         const span = document.createElement('span');
         span.className = classes;
-        span.innerText = text; 
+        span.innerText = text;
         this.currentOutputDiv.appendChild(span);
     }
 
@@ -253,13 +266,13 @@ class SkulptKernel {
                 this.writeOutput(text, 'text-slate-700');
             },
             read: (x) => {
-                if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined) throw "File not found: '" + x + "'";
+                if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined) throw USER_MESSAGES.fileNotFound + "'" + x + "'";
                 return Sk.builtinFiles["files"][x];
             },
             __future__: Sk.python3,
-            execLimit: 5000, 
+            execLimit: 5000,
             yieldLimit: 100,
-            timeoutMsg: () => "Execution stopped: Time limit (5s) exceeded."
+            timeoutMsg: () => USER_MESSAGES.timeoutExceeded
         });
 
         // --- Skulpt Expression Evaluator (JupyterLab-style) ---
@@ -267,7 +280,7 @@ class SkulptKernel {
         const lines = code.split('\n');
         let isWrapped = false;
         let lastCodeIndex = -1;
-        
+
         // Find the last line that has actual code, ignoring blank lines and comments
         for (let i = lines.length - 1; i >= 0; i--) {
             const trimmed = lines[i].trim();
@@ -276,11 +289,11 @@ class SkulptKernel {
                 break;
             }
         }
-        
+
         if (lastCodeIndex !== -1) {
             const lastCodeLine = lines[lastCodeIndex];
             const trimmed = lastCodeLine.trim();
-            
+
             // Heuristic: Is it a top-level line? Does it lack assignments? Is it not a keyword?
             const sanitized = trimmed.replace(/(==|!=|<=|>=)/g, '  ');
             const hasAssignment = sanitized.includes('=');
@@ -316,7 +329,7 @@ except BaseException:
                 }
             }
         }
-        
+
         if (historyCode) {
             executableCode = historyCode + '\nprint("___BEGIN_OUTPUT___", end="")\n' + executableCode;
         }
@@ -328,12 +341,16 @@ except BaseException:
                 this.executionHistory.push(`try:\n${indentedCode}\nexcept BaseException:\n    pass`);
             }
         } catch (err) {
-            if (this.isKilled) throw new Error(`Execution stopped: Output exceeded maximum limit.`);
-            
+            if (this.isKilled) throw new Error(USER_MESSAGES.outputExceeded);
+
             let errStr = err.toString();
-            let isSyntaxError = errStr.includes("SyntaxError") || errStr.includes("IndentationError") || errStr.includes("TabError") || errStr.includes("ParseError");
-            
-            if (!isSyntaxError && code.trim()) {
+            let isFatalError = errStr.includes("SyntaxError") ||
+                errStr.includes("IndentationError") ||
+                errStr.includes("TabError") ||
+                errStr.includes("ParseError") ||
+                errStr.includes("Time limit");
+
+            if (!isFatalError && code.trim()) {
                 const indentedCode = code.split('\n').map(line => '    ' + line).join('\n');
                 this.executionHistory.push(`try:\n${indentedCode}\nexcept BaseException:\n    pass`);
             }
@@ -352,7 +369,7 @@ except BaseException:
                 lineNum = Math.max(1, lineNum - historyLines);
                 return "on line " + lineNum;
             });
-            
+
             throw new Error(errStr.replace(/<stdin>/g, "line"));
         } finally {
             this.currentOutputDiv = null;
@@ -386,10 +403,10 @@ class BaseNotebookCell extends HTMLElement {
     connectedCallback() {
         if (this._initialized) return;
         this._initialized = true;
-        
+
         this.cellId = this.getAttribute('cell-id') || Math.random().toString(36).substring(2, 9);
         this.cellType = this.getAttribute('cell-type') || 'text';
-        this.isLocked = this.hasAttribute('is-locked'); 
+        this.isLocked = this.hasAttribute('is-locked');
         this.content = this.getAttribute('content') || '';
 
         this.renderShell();
@@ -415,7 +432,7 @@ class BaseNotebookCell extends HTMLElement {
 
         this.mainBox = document.createElement('div');
         this.mainBox.className = 'cell-container group/cell relative bg-white border border-slate-200 rounded-md shadow-sm flex items-stretch transition-all hover:border-slate-300 min-h-[1.75rem] box-border';
-        
+
         const isReadOnlyGlobal = window.notebookCore && window.notebookCore.options && window.notebookCore.options.isReadOnly;
         // --- NEW: Grab the disableMove flag ---
         const disableMove = window.notebookCore && window.notebookCore.options && window.notebookCore.options.disableMove;
@@ -433,7 +450,7 @@ class BaseNotebookCell extends HTMLElement {
 
         this.contentArea = document.createElement('div');
         this.contentArea.className = 'flex-1 relative flex flex-col min-w-0 p-0 box-border min-h-0';
-        
+
         const disableTypeChange = window.notebookCore && window.notebookCore.options && window.notebookCore.options.disableTypeChange;
         const disableDelete = window.notebookCore && window.notebookCore.options && window.notebookCore.options.disableDelete;
 
@@ -501,9 +518,9 @@ class BaseNotebookCell extends HTMLElement {
         }
     }
 
-    mountContent(container) {}
-    handleActionClick() {}
-    refresh() {}
+    mountContent(container) { }
+    handleActionClick() { }
+    refresh() { }
 
     updateActionButton(config) {
         if (!this.actionBtnElement) return;
@@ -528,8 +545,8 @@ class BaseNotebookCell extends HTMLElement {
         }
     }
 
-    toJSON() { 
-        return { id: this.cellId, type: this.cellType, content: this.content, isLocked: this.isLocked }; 
+    toJSON() {
+        return { id: this.cellId, type: this.cellType, content: this.content, isLocked: this.isLocked };
     }
 }
 window.BaseNotebookCell = BaseNotebookCell;
@@ -545,18 +562,18 @@ class NotebookCore {
 
     constructor(containerId: string, options: any = {}) {
         this.container = document.getElementById(containerId);
-        
+
         const defaultConfig = {
             widgetId: Math.random().toString(36).substring(2, 10),
             isReadOnly: false,
             questionMode: false, // <-- NEW Macro Flag
             defaultCellType: 'code',
-            kernelType: 'pyodide', 
-            kernelMode: 'local',   
+            kernelType: 'pyodide',
+            kernelMode: 'local',
             preloadMatplotlib: true,
-            maxOutputChars: 50000, 
-            enableTracing: true,       
-            maxRuntime: 15.0,          
+            maxOutputChars: 50000,
+            enableTracing: true,
+            maxRuntime: 15.0,
             disableInsertAll: false,
             disableInsertTop: false,
             disableDelete: false,
@@ -583,12 +600,12 @@ class NotebookCore {
             defaultConfig.disableInsertAll = true;
             defaultConfig.disableInsertTop = true;
         }
-        
+
         // Merge the incoming options OVER the new defaults. 
         // This allows a user to specify {"questionMode": true, "disableInsertAll": false} 
         // and successfully override the strict default!
         this.options = { ...defaultConfig, ...options };
-        
+
         this.isReadOnly = this.options.isReadOnly;
         this.defaultCellType = this.options.defaultCellType;
         this.activeCodeEditor = null;
@@ -602,7 +619,7 @@ class NotebookCore {
                 topInserter.onclick = () => this.addCell(this.defaultCellType, 0);
             }
         }
-        
+
         const selector = document.getElementById('kernel-selector');
         if (selector) {
             (selector as any).value = this.options.kernelType;
@@ -639,7 +656,7 @@ class NotebookCore {
         if (this.options.lockKernel) return;
         if (this.options.kernelType === newType) return;
         this.options.kernelType = newType;
-        
+
         const selector = document.getElementById('kernel-selector');
         if (selector) (selector as any).value = newType;
 
@@ -654,10 +671,10 @@ class NotebookCore {
         this.container.addEventListener('cell-height-changed', () => {
             if (typeof sendHeight === 'function') requestAnimationFrame(sendHeight);
         });
-        
+
         this.container.addEventListener('cell-deleted', (e) => {
             if (this.options.disableDelete) return; // <-- LOGIC SAFEGUARD
-            
+
             const el = (e.target as any);
             if (!this.isReadOnly && el && !el.isLocked) {
                 el.remove();
@@ -681,7 +698,7 @@ class NotebookCore {
 
             const newType = ((e as any).detail as any).newType;
             const content = ((e as any).detail as any).content;
-            
+
             const newCell = this.createCellElement({ type: newType, content: content, isEditing: newType === 'markdown' });
             this.container.insertBefore(newCell, oldEl);
             oldEl.remove();
@@ -695,11 +712,11 @@ class NotebookCore {
         const el = document.getElementById('kernel-status-indicator');
         if (!el) return;
 
-        if (status === 'loading') el.innerHTML = `Loading... <span class="w-3 h-3 ml-1 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin inline-block"></span>`;
-        else if (status === 'packages') el.innerHTML = `Packages... <span class="w-3 h-3 ml-1 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin inline-block"></span>`;
-        else if (status === 'ready') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-green-500 inline-block"></span> Ready`;
-        else el.innerHTML = `<span class="h-2 w-2 rounded-full bg-red-500 inline-block"></span> Error`;
-        
+        if (status === 'loading') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-yellow-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelStarting}`;
+        else if (status === 'packages') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-blue-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelLoadingPackages}`;
+        else if (status === 'ready') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-green-500 inline-block"></span> ${USER_MESSAGES.kernelReady}`;
+        else el.innerHTML = `<span class="h-2 w-2 rounded-full bg-red-500 inline-block"></span> ${USER_MESSAGES.kernelError}`;
+
         if (status === 'ready') {
             window.dispatchEvent(new CustomEvent('kernel-status-changed', { detail: { isReady: true } }));
         }
@@ -708,7 +725,7 @@ class NotebookCore {
     async restartKernel() {
         if (this.isReadOnly) return;
         this.updateKernelStatus('loading');
-        
+
         Array.from(this.container.children).forEach(cell => {
             if (cell.tagName.toLowerCase() === 'notebook-code-cell' && (cell as any).clearOutput) {
                 (cell as any).clearOutput();
@@ -726,13 +743,13 @@ class NotebookCore {
 
     loadData(cellDataArray: any) {
         this.container.innerHTML = '';
-        
+
         // Merge file-level config into options.
         // Existing options (widget/HTML config) take precedence over the file config.
         if (cellDataArray.globalConfig) {
             this.options = { ...cellDataArray.globalConfig, ...this.options };
         }
-        
+
         cellDataArray.forEach(data => {
             this.container.appendChild(this.createCellElement(data));
         });
@@ -757,13 +774,13 @@ class NotebookCore {
     addCell(type = 'code', index = 0) {
         if (this.isReadOnly || this.options.disableInsertAll) return;
         const newCell = this.createCellElement({ type: type, content: '', isEditing: type === 'markdown' });
-        
+
         if (this.container.children.length === 0 || index >= this.container.children.length) {
             this.container.appendChild(newCell);
         } else {
             this.container.insertBefore(newCell, this.container.children[index]);
         }
-        
+
         this.syncToServer();
         setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 100);
     }
@@ -786,14 +803,14 @@ class NotebookCore {
     setupDragAndDrop() {
         // --- UPDATED: Prevent SortableJS from running if disableMove is active ---
         if (this.isReadOnly || this.options.disableMove || this.sortable || typeof Sortable === 'undefined') return;
-        
+
         this.sortable = new Sortable(this.container, {
             handle: '.drag-handle',
             animation: 150,
-            filter: '[is-locked]', 
+            filter: '[is-locked]',
             onEnd: () => {
                 const cells = Array.from(this.container.children);
-                cells.forEach(cell => { if ((cell as any).refresh) (cell as any).refresh(); }); 
+                cells.forEach(cell => { if ((cell as any).refresh) (cell as any).refresh(); });
                 this.syncToServer();
             },
         });

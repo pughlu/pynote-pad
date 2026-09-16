@@ -1,3 +1,8 @@
+const FORMAT_MESSAGES = {
+    invalidMetadata: "PyNote Parser: Invalid JSON metadata ->",
+    invalidConfig: "PyNote Parser: Invalid global config JSON block"
+};
+
 class NotebookFormatConverter {
     /**
      * Converts a Native PyNote Object Array into a .pynote.py Flatfile string
@@ -104,7 +109,7 @@ class NotebookFormatConverter {
                         if (metaObj.hidden) isHidden = true;
                         parsedMeta = metaObj;
                     } catch (e) {
-                        console.warn("PyNote Parser: Invalid JSON metadata ->", jsonMatch[1]);
+                        console.warn(FORMAT_MESSAGES.invalidMetadata, jsonMatch[1]);
                     }
                 }
 
@@ -139,7 +144,7 @@ class NotebookFormatConverter {
                 try {
                     globalConfig = JSON.parse(c.content);
                 } catch (e) {
-                    console.warn("PyNote Parser: Invalid global config JSON block", e);
+                    console.warn(FORMAT_MESSAGES.invalidConfig, e);
                 }
             } else {
                 delete c.lines; 
