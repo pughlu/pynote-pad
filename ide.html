@@ -210,15 +210,27 @@
                         <option value="pyodide">Pyodide (Full CPython)</option>
                     </select>
                 </div>
+
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Autocomplete Engine</label>
+                    <select id="config-autocomplete" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded p-1.5">
+                        <option value="custom">Standard (Fast)</option>
+                        <option value="jedi">Jedi (Python Semantic)</option>
+                    </select>
+                </div>
                 
                 <hr class="border-slate-100">
 
                 <div class="flex flex-col gap-2.5">
                     <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="config-topbar" class="w-4 h-4 text-blue-600 rounded"><span>Show Top Toolbar</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="config-sharebtn" class="w-4 h-4 text-blue-600 rounded"><span>Show Share Button</span></label>
                     <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="config-question" class="w-4 h-4 text-blue-600 rounded"><span>Enable Question Mode</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="config-lockkernel" class="w-4 h-4 text-blue-600 rounded"><span>Lock Kernel</span></label>
                     <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="config-readonly" class="w-4 h-4 text-blue-600 rounded"><span>Global Read-Only</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="config-lockmarkdown" class="w-4 h-4 text-blue-600 rounded"><span>Lock Markdown Cells</span></label>
                     <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="config-noinsert" class="w-4 h-4 text-blue-600 rounded"><span>Disable Cell Insertion</span></label>
                     <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="config-nodelete" class="w-4 h-4 text-blue-600 rounded"><span>Disable Cell Deletion</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="config-nomove" class="w-4 h-4 text-blue-600 rounded"><span>Disable Cell Movement</span></label>
                 </div>
             </div>
         </aside>
@@ -256,14 +268,14 @@
 
         // --- 1. STATE & VIRTUAL FILE SYSTEM ---
         let virtualFS = {
-            'main.pynote.py': `# %% [markdown]\n"""\n### Welcome to the PyNote IDE!\nUse the **View** menu to switch between the Visual Editor and raw code formats!\n"""\n\n# %% [code]\nprint("Hello World!")`
+            'main': `# %% [markdown]\n"""\n### Welcome to the PyNote IDE!\nUse the **View** menu to switch between the Visual Editor and raw code formats!\n"""\n\n# %% [code]\nprint("Hello World!")`
         };
-        let activeFileName = 'main.pynote.py';
+        let activeFileName = 'main';
         let currentViewMode = 'visual'; // 'visual', 'flatfile', 'jupyter'
 
         let currentOptions = {
-            showTopBar: true, kernelType: 'skulpt', autocompleteMode: 'custom',
-            questionMode: false, isReadOnly: false, disableInsertAll: false, disableDelete: false
+            showTopBar: true, kernelType: 'skulpt', autocompleteMode: 'custom', showShareButton: false, lockKernel: false,
+            questionMode: false, isReadOnly: false, disableInsertAll: false, disableDelete: false, disableMove: false, lockAllMarkdown: false
         };
 
         // --- 2. URL COMPRESSION ENGINE ---
@@ -373,11 +385,16 @@
                     currentOptions = { ...currentOptions, ...parsedCells.globalConfig };
                     
                     document.getElementById('config-kernel').value = currentOptions.kernelType || 'skulpt';
+                    document.getElementById('config-autocomplete').value = currentOptions.autocompleteMode || 'custom';
                     document.getElementById('config-topbar').checked = currentOptions.showTopBar !== false;
+                    document.getElementById('config-sharebtn').checked = !!currentOptions.showShareButton;
                     document.getElementById('config-question').checked = !!currentOptions.questionMode;
+                    document.getElementById('config-lockkernel').checked = !!currentOptions.lockKernel;
                     document.getElementById('config-readonly').checked = !!currentOptions.isReadOnly;
+                    document.getElementById('config-lockmarkdown').checked = !!currentOptions.lockAllMarkdown;
                     document.getElementById('config-noinsert').checked = !!currentOptions.disableInsertAll;
                     document.getElementById('config-nodelete').checked = !!currentOptions.disableDelete;
+                    document.getElementById('config-nomove').checked = !!currentOptions.disableMove;
                 }
             } else {
                 visualWrapper.classList.add('hidden'); visualWrapper.classList.remove('flex');
@@ -418,6 +435,17 @@
             });
         }
 
+        window.renameFile = function(oldName) {
+            const newName = prompt("Enter new name for file (without extension):", oldName);
+            if (!newName || newName === oldName) return;
+            if (virtualFS[newName]) { alert("A file with this name already exists!"); return; }
+            virtualFS[newName] = virtualFS[oldName];
+            delete virtualFS[oldName];
+            if (activeFileName === oldName) activeFileName = newName;
+            updateFileListUI();
+            updateTabBarUI();
+        };
+
         function updateFileListUI() {
             const listEl = document.getElementById('file-list');
             listEl.innerHTML = '';
@@ -425,7 +453,8 @@
                 const isActive = fileName === activeFileName;
                 const btn = document.createElement('button');
                 btn.className = `w-full text-left px-3 py-1.5 rounded text-sm truncate transition-colors flex items-center gap-2 ${isActive ? 'bg-blue-100 text-blue-700 font-medium' : 'hover:bg-slate-100 text-slate-600'}`;
-                btn.innerHTML = `<svg class="w-4 h-4 shrink-0 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>${fileName}`;
+                btn.innerHTML = `<svg class="w-4 h-4 shrink-0 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                 <span class="flex-1 truncate cursor-text" onclick="event.stopPropagation(); renameFile('${fileName}')" title="Click to edit name">${fileName}</span>`;
                 btn.onclick = () => switchFile(fileName);
                 listEl.appendChild(btn);
             });
@@ -440,11 +469,11 @@
         }
 
         document.getElementById('menu-file-save-flat').onclick = (e) => {
-            e.preventDefault(); if (syncCurrentState()) downloadFile(activeFileName.replace('.ipynb', '') + '.pynote.py', virtualFS[activeFileName]);
+            e.preventDefault(); if (syncCurrentState()) downloadFile(activeFileName + '.pynote.py', virtualFS[activeFileName]);
         };
 
         document.getElementById('btn-export').onclick = () => {
-            if (syncCurrentState()) downloadFile(activeFileName.replace('.ipynb', '') + '.pynote.py', virtualFS[activeFileName]);
+            if (syncCurrentState()) downloadFile(activeFileName + '.pynote.py', virtualFS[activeFileName]);
         };
 
         document.getElementById('menu-file-save-ipynb').onclick = (e) => {
@@ -456,44 +485,58 @@
                 source: c.content ? c.content.split('\n').map((l, i, arr) => l + (i === arr.length - 1 ? '' : '\n')) : [],
                 ...(c.type === 'code' ? { execution_count: null, outputs: [] } : {})
             }));
-            downloadFile(activeFileName.replace('.pynote.py', '') + '.ipynb', JSON.stringify({ cells, metadata: { language_info: { name: "python" } }, nbformat: 4, nbformat_minor: 5 }, null, 2));
+            downloadFile(activeFileName + '.ipynb', JSON.stringify({ cells, metadata: { language_info: { name: "python" } }, nbformat: 4, nbformat_minor: 5 }, null, 2));
         };
 
-        document.getElementById('menu-file-save-moodle').onclick = async (e) => {
+        document.getElementById('menu-file-save-moodle').onclick = (e) => {
             e.preventDefault();
             if (!syncCurrentState()) return;
 
-            const btnSpan = e.currentTarget.querySelector('span');
-            const originalText = btnSpan.innerText;
-            btnSpan.innerText = "Fetching template...";
+            const attrMap = {
+                kernelType: 'data-kernel-type',
+                autocompleteMode: 'data-autocomplete-mode',
+                showTopBar: 'data-show-top-bar',
+                showShareButton: 'data-show-share-button',
+                questionMode: 'data-question-mode',
+                lockKernel: 'data-lock-kernel',
+                isReadOnly: 'data-read-only',
+                lockAllMarkdown: 'data-lock-markdown',
+                disableInsertAll: 'data-disable-insert-all',
+                disableDelete: 'data-disable-delete',
+                disableMove: 'data-disable-move'
+            };
 
-            try {
-                const response = await fetch('https://python-web-ide.pages.dev/moodle-template.xml');
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                let templateStr = await response.text();
-
-                let flatData = virtualFS[activeFileName];
-                flatData = flatData.replace(/]]>/g, ']]]]><![CDATA[>');
-
-                const configJson = JSON.stringify({
-                    showTopBar: currentOptions.showTopBar,
-                    kernelType: currentOptions.kernelType,
-                    autocompleteMode: currentOptions.autocompleteMode,
-                    questionMode: currentOptions.questionMode
-                }, null, 8).trim();
-                
-                const randomId = Math.random().toString(36).substring(2, 8);
-                templateStr = templateStr.replace(/{{PYNOTE_FLATFILE}}/g, flatData);
-                templateStr = templateStr.replace(/{{PYNOTE_CONFIG}}/g, configJson);
-                templateStr = templateStr.replace(/{{UNIQUE_ID}}/g, randomId);
-
-                downloadFile('pynote-moodle-export.xml', templateStr);
-            } catch (err) {
-                console.error("Template Fetch Error:", err);
-                alert("Failed to fetch the Moodle template. Please check your connection.");
-            } finally {
-                btnSpan.innerText = originalText;
+            let attrs = 'style="white-space: pre-wrap; font-family: monospace;"';
+            for (const [key, attr] of Object.entries(attrMap)) {
+                if (currentOptions[key] !== undefined) {
+                    attrs += ` ${attr}="${currentOptions[key]}"`;
+                }
             }
+
+            let questionsXml = '';
+            
+            for (const [fName, fContent] of Object.entries(virtualFS)) {
+                let flatData = fContent.replace(/]]>/g, ']]]]><![' + 'CDATA[' + '>');
+                const payloadHtml = `<pynote ${attrs}>\n${flatData}\n</pynote>\n<script src="https://pynote-pad.pages.dev/pynote-mdl-quiz.js"></scr` + `ipt>`;
+                
+                questionsXml += `
+  <question type="essay">
+    <name>
+      <text><` + `![CDATA[${fName}]]></text>
+    </name>
+    <questiontext format="html">
+      <text><` + `![CDATA[${payloadHtml}]]></text>
+    </questiontext>
+    <responseformat>plain</responseformat>
+    <responserequired>1</responserequired>
+    <responsefieldlines>15</responsefieldlines>
+    <attachments>0</attachments>
+    <attachmentsrequired>0</attachmentsrequired>
+  </question>`;
+            }
+
+            const xmlStr = `<?xml version="1.0" encoding="UTF-8"?>\n<quiz>${questionsXml}\n</quiz>`;
+            downloadFile('pynote-moodle-bank.xml', xmlStr);
         };
 
         // SHARE URL BINDING
@@ -535,24 +578,29 @@
             const reader = new FileReader();
             reader.onload = (event) => {
                 let content = event.target.result;
+                let baseName = file.name.replace(/\.ipynb$/, '').replace(/\.pynote\.py$/, '');
                 if (file.name.endsWith('.ipynb')) {
                     try {
                         const ipynb = JSON.parse(content);
                         content = ipynb.cells.map(c => `# %% [${c.cell_type === 'markdown' ? 'markdown' : 'code'}]\n${(Array.isArray(c.source) ? c.source.join('') : c.source || '').replace(/\\n+$/, '')}`).join('\n\n');
                     } catch (e) { alert("Invalid Jupyter Notebook"); return; }
                 }
-                virtualFS[file.name] = content;
-                switchFile(file.name);
+                virtualFS[baseName] = content;
+                switchFile(baseName);
             };
             reader.readAsText(file);
         }
 
         // --- 8. RHS CONFIGURATION BINDINGS ---
         
-        ['kernel', 'topbar', 'question', 'readonly', 'noinsert', 'nodelete'].forEach(key => {
+        ['kernel', 'autocomplete', 'topbar', 'sharebtn', 'question', 'lockkernel', 'readonly', 'lockmarkdown', 'noinsert', 'nodelete', 'nomove'].forEach(key => {
             const el = document.getElementById('config-' + key);
             el.addEventListener('change', (e) => {
-                const map = { kernel: 'kernelType', topbar: 'showTopBar', question: 'questionMode', readonly: 'isReadOnly', noinsert: 'disableInsertAll', nodelete: 'disableDelete' };
+                const map = { 
+                    kernel: 'kernelType', autocomplete: 'autocompleteMode', topbar: 'showTopBar', sharebtn: 'showShareButton', 
+                    question: 'questionMode', lockkernel: 'lockKernel', readonly: 'isReadOnly', lockmarkdown: 'lockAllMarkdown', 
+                    noinsert: 'disableInsertAll', nodelete: 'disableDelete', nomove: 'disableMove' 
+                };
                 currentOptions[map[key]] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
                 if (syncCurrentState()) renderWorkspace();
             });
