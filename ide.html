@@ -113,10 +113,6 @@
                 <div class="px-4 py-1.5 text-xs text-slate-500">Use the right-hand panel to adjust live configuration.</div>
             </div>
         </div>
-        
-        <button id="btn-export" class="px-3 py-1 hover:bg-slate-700 hover:text-white rounded transition-colors ml-auto text-xs font-semibold bg-slate-700/50 border border-slate-600">
-            Download File
-        </button>
     </nav>
 
     <!-- 3-PANE WORKSPACE (Split.js Target) -->
@@ -127,9 +123,14 @@
         <aside id="lhs-panel" class="bg-white flex flex-col shrink-0 overflow-hidden relative z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
             <div class="px-3 py-2 border-b border-slate-200 bg-slate-50 font-semibold text-xs text-slate-500 uppercase tracking-wider flex justify-between items-center shrink-0">
                 <span>Files</span>
-                <button onclick="document.getElementById('file-upload').click()" class="text-slate-400 hover:text-blue-500 transition-colors" title="Upload File">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                </button>
+                <div class="flex gap-1">
+                    <button onclick="newFile()" class="text-slate-400 hover:text-blue-500 transition-colors" title="New File">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    </button>
+                    <button onclick="document.getElementById('file-upload').click()" class="text-slate-400 hover:text-blue-500 transition-colors" title="Upload File">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    </button>
+                </div>
             </div>
             
             <div id="lhs-file-panel" class="flex-1 overflow-y-auto p-2">
@@ -183,8 +184,8 @@
                 </div>
 
                 <!-- RAW TEXT EDITOR (Hidden by default) -->
-                <!-- shrink-0 and mb-12 applied -->
-                <div id="raw-editor-wrapper" class="w-full max-w-5xl bg-white border border-slate-200 rounded-md shadow-sm flex-col hidden shrink-0 min-h-[600px] mb-12">
+                <!-- flex-1 applied to fill remaining vertical and horizontal space -->
+                <div id="raw-editor-wrapper" class="w-full h-full bg-white border border-slate-200 rounded-md shadow-sm flex-col hidden flex-1 mb-12">
                     <div class="bg-slate-800 text-slate-200 px-4 py-2 text-xs font-mono rounded-t-md flex justify-between shrink-0">
                         <span id="raw-editor-title">raw mode</span>
                         <span class="text-slate-400">Edits are applied when switching views or tabs.</span>
@@ -268,9 +269,9 @@
 
         // --- 1. STATE & VIRTUAL FILE SYSTEM ---
         let virtualFS = {
-            'main': `# %% [markdown]\n"""\n### Welcome to the PyNote IDE!\nUse the **View** menu to switch between the Visual Editor and raw code formats!\n"""\n\n# %% [code]\nprint("Hello World!")`
+            'untitled': `# %% [markdown]\n"""\n### Welcome to PyNote!\n"""\n\n# %% [code]\nprint("Hello World!")`
         };
-        let activeFileName = 'main';
+        let activeFileName = 'untitled';
         let currentViewMode = 'visual'; // 'visual', 'flatfile', 'jupyter'
 
         let currentOptions = {
@@ -428,13 +429,48 @@
             Object.keys(virtualFS).forEach(fileName => {
                 const isActive = fileName === activeFileName;
                 const tab = document.createElement('div');
-                tab.className = `flex items-center px-4 py-1.5 text-sm cursor-pointer select-none border-t border-x rounded-t-lg transition-colors ${isActive ? 'bg-white border-slate-300 text-blue-600 font-medium translate-y-px z-10' : 'bg-slate-100 border-transparent text-slate-500 hover:bg-slate-50 border-b border-b-slate-300'}`;
-                tab.innerHTML = `<svg class="w-4 h-4 mr-1.5 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> 
-                                 <span class="flex-1 truncate" ondblclick="event.stopPropagation(); startInlineRename(this, '${fileName}')">${fileName}</span>`;
+                tab.className = `flex items-center px-3 py-1.5 text-sm cursor-pointer select-none border-t border-x rounded-t-lg transition-colors ${isActive ? 'bg-white border-slate-300 text-blue-600 font-medium translate-y-px z-10' : 'bg-slate-100 border-transparent text-slate-500 hover:bg-slate-50 border-b border-b-slate-300'}`;
+                tab.innerHTML = `<svg class="w-4 h-4 mr-1.5 shrink-0 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> 
+                                 <span class="truncate max-w-[120px] cursor-text" ondblclick="event.stopPropagation(); startInlineRename(this, '${fileName}')">${fileName}</span>
+                                 <button class="ml-1.5 p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-red-500 shrink-0" onclick="event.stopPropagation(); closeFile('${fileName}')">
+                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                 </button>`;
                 tab.onclick = () => switchFile(fileName);
                 tabBar.appendChild(tab);
             });
         }
+        
+        window.newFile = function() {
+            let i = 1;
+            let name = `untitled`;
+            while (virtualFS[name]) {
+                name = `untitled (${i})`;
+                i++;
+            }
+            virtualFS[name] = `# %% [markdown]\n"""\n### New Notebook\n"""\n\n# %% [code]\n`;
+            switchFile(name);
+        };
+        
+        window.closeFile = function(fileName) {
+            delete virtualFS[fileName];
+            
+            const remainingFiles = Object.keys(virtualFS);
+            if (remainingFiles.length === 0) {
+                // If all files closed, create a new empty one to prevent UI break
+                activeFileName = 'untitled';
+                virtualFS[activeFileName] = `# %% [markdown]\n"""\n### New Notebook\n"""\n\n# %% [code]\n`;
+                if (!syncCurrentState()) return;
+                renderWorkspace();
+            } else if (fileName === activeFileName) {
+                // If we closed the active file, switch to the last open one
+                activeFileName = remainingFiles[remainingFiles.length - 1];
+                if (!syncCurrentState()) return;
+                renderWorkspace();
+            } else {
+                updateFileListUI();
+                updateTabBarUI();
+            }
+        };
 
         window.startInlineRename = function(spanElement, oldName) {
             if (spanElement.querySelector('input')) return; // Already editing
@@ -520,10 +556,6 @@
 
         document.getElementById('menu-file-save-flat').onclick = (e) => {
             e.preventDefault(); if (syncCurrentState()) downloadFile(activeFileName + '.pynote.py', virtualFS[activeFileName]);
-        };
-
-        document.getElementById('btn-export').onclick = () => {
-            if (syncCurrentState()) downloadFile(activeFileName + '.pynote.py', virtualFS[activeFileName]);
         };
 
         document.getElementById('menu-file-save-ipynb').onclick = (e) => {
