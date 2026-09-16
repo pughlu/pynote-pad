@@ -1,0 +1,23 @@
+{
+  "name": "pynote",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "postinstall": "cp node_modules/lms-widget-manager/dist/lms-widget-manager.iife.js public/ || echo 'Ensure lms-widget-manager is built'"
+  },
+  "dependencies": {
+    "lms-widget-manager": "github:pughlu/lms-widget-manager"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "vite": "^8.3.0"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "fsevents@2.3.3": true
+  }
+}

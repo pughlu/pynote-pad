@@ -1,0 +1,33 @@
+<h2>Using the &lt;pynote&gt; Template Tag</h2>
+
+<!-- METHOD 1: Using the custom <pynote> tag. 
+     This acts as a placeholder and holds the initial content. 
+     The whitespace inside is preserved until the script boots. -->
+<pynote style="white-space: pre-wrap; font-family: monospace; display: none;">
+# %% [pynote-start]
+# %% [markdown]
+Define a variable `x = 10`
+# %% [code]
+
+
+# %% [pynote-end]
+</pynote>
+
+<hr>
+
+<h2>Using the data-add-pynote-here attribute</h2>
+
+<!-- METHOD 2: Using an empty div with the data attribute -->
+<div data-add-pynote-here="true"></div>
+
+<!-- Just include the script once anywhere on the page -->
+<!-- pynote.js is for simple embedding anywhere -->
+<!-- <script src="http://localhost:5173/pynote.js"></script> -->
+
+<!-- pynote-mdl-quiz.js is for Moodle Quiz / lms-widget-manager integration -->
+<div class="que">
+  <div class="answer">
+    <textarea rows="5" cols="80" style="display: block;">print("Existing answer in Moodle database")</textarea>
+  </div>
+  <script src="http://localhost:5173/pynote-mdl-quiz.js"></script>
+</div>
