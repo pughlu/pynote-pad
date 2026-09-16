@@ -14,7 +14,6 @@
     <link rel="stylesheet" href="/src/markdown-styles.css">
 
     <!-- 3. Third-Party Runtime Libraries -->
-    <script src="/cm6.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/autosize.js/6.0.1/autosize.min.js"></script>
@@ -138,8 +137,17 @@
         let isLocked = false;
         let isStandaloneFallback = false;
         let currentOriginalTemplate = '';
+        
+        // Parse UI config from URL query params (set by parent iframe creator)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('topBar') === '1') {
+            document.getElementById('main-header').classList.remove('hidden');
+        }
+        if (urlParams.get('shareBtn') === '1') {
+            document.getElementById('btn-share').classList.remove('hidden');
+        }
 
-        function lockWidget(message = "Widget disconnected") { 
+        const lockWidget = (message = "Widget disconnected") => { 
             if (isStandaloneFallback) return;
             isLocked = true;
             document.getElementById('modal-msg').innerText = message;

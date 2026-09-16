@@ -1,3 +1,5 @@
+import * as cm6 from './cm6';
+
 class CodeCellElement extends BaseNotebookCell {
     output!: string;
     editorWrap!: HTMLDivElement;
@@ -61,11 +63,6 @@ class CodeCellElement extends BaseNotebookCell {
         this.updateActionButton(this.getActionButtonConfig());
 
         setTimeout(() => {
-            if (typeof cm6 === 'undefined') {
-                this.editorWrap.innerHTML = "<div class='p-3 text-red-500 font-bold'>Error: CodeMirror 6 bundle not found.</div>";
-                return;
-            }
-
             const coreConfig = (window.notebookCore && window.notebookCore.options) || {};
             const acMode = coreConfig.autocompleteMode || 'custom';
 
@@ -73,44 +70,34 @@ class CodeCellElement extends BaseNotebookCell {
             
             if (cm6.basicSetup) customExtensions.push(cm6.basicSetup);
             
-            // Apply the theme if you added it to the bundle
-            if (cm6.pynoteTheme) customExtensions.push(cm6.pynoteTheme);
-
             if (typeof cm6.python === 'function') {
                 customExtensions.push(cm6.python());
-            } else if (cm6.langPython && typeof cm6.langPython.python === 'function') {
-                customExtensions.push(cm6.langPython.python());
             }
 
-            if (cm6.language && cm6.language.indentUnit) {
-                customExtensions.push(cm6.language.indentUnit.of("    "));
+            if (cm6.indentUnit) {
+                customExtensions.push(cm6.indentUnit.of("    "));
             }
-            if (cm6.state && cm6.state.EditorState && cm6.state.EditorState.tabSize) {
-                customExtensions.push(cm6.state.EditorState.tabSize.of(4));
+            if (cm6.EditorState && cm6.EditorState.tabSize) {
+                customExtensions.push(cm6.EditorState.tabSize.of(4));
             }
 
-            // --- THE BUNDLED AUTOCOMPLETE ROUTER ---
-            if (cm6.getAutocompleteExtensions) {
-                customExtensions.push(...cm6.getAutocompleteExtensions(acMode));
-            } else {
-                // Failsafe if the bundle doesn't have the router: just map Tab to indent
-                if (cm6.keymap && cm6.commands && cm6.commands.indentMore && cm6.commands.indentLess) {
-                    customExtensions.push(cm6.keymap.of([
-                        { key: "Tab", run: cm6.commands.indentMore },
-                        { key: "Shift-Tab", run: cm6.commands.indentLess }
-                    ]));
-                }
+            // Failsafe autocomplete since we didn't migrate getAutocompleteExtensions
+            if (cm6.keymap && cm6.indentMore && cm6.indentLess) {
+                customExtensions.push(cm6.keymap.of([
+                    { key: "Tab", run: cm6.indentMore },
+                    { key: "Shift-Tab", run: cm6.indentLess }
+                ]));
             }
 
             if (this.isLocked) {
-                const ViewObj = cm6.EditorView || (cm6.view ? cm6.view.EditorView : null);
+                const ViewObj = cm6.EditorView;
                 if (ViewObj && ViewObj.editable) customExtensions.push(ViewObj.editable.of(false));
                 
-                const StateObj = cm6.EditorState || (cm6.state ? cm6.state.EditorState : null);
+                const StateObj = cm6.EditorState;
                 if (StateObj && StateObj.readOnly) customExtensions.push(StateObj.readOnly.of(true));
             }
 
-            const EditorView = cm6.EditorView || (cm6.view ? cm6.view.EditorView : null);
+            const EditorView = cm6.EditorView;
             if (EditorView && EditorView.updateListener) {
                 customExtensions.push(EditorView.updateListener.of((update) => {
                     

@@ -37,9 +37,7 @@
   }
   window.loadLMSWidgetManager = loadLMSWidgetManager;
 
-  function applyLmsIntegration(embed, textarea, height, origin, starterCode) {
-    const showAnswerbox = embed.getAttribute('data-show-answerbox') === 'true';
-
+  function applyLmsIntegration(embed, textarea, height, origin, starterCode, showAnswerbox) {
     if (textarea && starterCode && !textarea.value) {
       textarea.value = starterCode;
     }
@@ -59,6 +57,9 @@
     container.className = 'lms-widget-container pynote-widget-mount-point';
     container.setAttribute('data-widget-origin', '*');
     container.setAttribute('data-origin', '*');
+    if (showAnswerbox) {
+        container.setAttribute('data-lms-widget-show-answerbox', 'true');
+    }
     if (textarea) {
       if (textarea.id) container.setAttribute('data-lms-target-textarea', '#' + textarea.id);
       if (textarea.name) container.setAttribute('data-lms-textarea-name', textarea.name);
@@ -91,18 +92,16 @@
 
     // The widget manager protocol is designed to initialize via LMS messaging,
     // so we just point it at the index.html and let the LMS widget manager do the handshake.
-    iframe.src = `${origin}/index.html`;
+    const params = new URLSearchParams();
+    if (showTopBar === 'true') params.append('topBar', '1');
+    if (showShareBtn === 'true') params.append('shareBtn', '1');
+    iframe.src = `${origin}/index.html?${params.toString()}`;
 
     iframe.onload = () => {
-      const showTopBar = embed.hasAttribute('data-show-top-bar') ? embed.getAttribute('data-show-top-bar') : 'true';
-      const showShareBtn = embed.hasAttribute('data-show-share-button') ? embed.getAttribute('data-show-share-button') : 'false';
-      
       iframe.contentWindow.postMessage({
         type: 'SET_WIDGET_CONFIG',
         payload: {
-          originalTemplate: starterCode,
-          showTopBar: showTopBar === 'true',
-          showShareButton: showShareBtn === 'true'
+          originalTemplate: starterCode
         }
       }, '*');
     };
@@ -190,7 +189,10 @@
         }
       }
 
-      applyLmsIntegration(embed, textarea, height || 400, origin, embed._starterCode);
+      const scriptRef = document.currentScript || document.querySelector('script[src*="pynote-mdl-quiz"]');
+      const showAnswerbox = scriptRef ? scriptRef.getAttribute('data-show-answerbox') === 'true' : false;
+
+      applyLmsIntegration(embed, textarea, height || 400, origin, embed._starterCode, showAnswerbox);
     }
 
     if (!window.__pynoteHeightListenerAttached) {

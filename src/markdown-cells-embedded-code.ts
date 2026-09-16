@@ -1,3 +1,5 @@
+import * as cm6 from './cm6';
+
 /**
  * PyNote Plugin: CM6 Embeds & Widget Router
  */
@@ -37,36 +39,30 @@ if (customElements.get('notebook-markdown-cell')) {
             pre.classList.add('group', 'cm-wrapper', 'border', 'border-slate-200', 'rounded-md', 'my-3');
 
             try {
-                if (typeof cm6 !== 'undefined') {
-                    const customExtensions = [];
-                    if (cm6.basicSetup) customExtensions.push(cm6.basicSetup);
+                const customExtensions = [];
+                if (cm6.basicSetup) customExtensions.push(cm6.basicSetup);
 
-                    const EditorView = cm6.EditorView || (cm6.view ? cm6.view.EditorView : null);
-                    const EditorState = cm6.EditorState || (cm6.state ? cm6.state.EditorState : null);
+                const EditorView = cm6.EditorView;
+                const EditorState = cm6.EditorState;
 
-                    if (EditorView && EditorView.theme) {
-                        customExtensions.push(EditorView.theme({
-                            ".cm-gutters": { display: "none !important" },
-                            "&": { backgroundColor: "#f8fafc" },
-                            ".cm-scroller": { fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "1rem" }
-                        }));
-                    }
-
-                    if (lang === 'python' && typeof cm6.python === 'function') {
-                        customExtensions.push(cm6.python());
-                    } else if (lang === 'python' && cm6.langPython && typeof cm6.langPython.python === 'function') {
-                        customExtensions.push(cm6.langPython.python());
-                    }
-
-                    if (EditorView && EditorView.editable) customExtensions.push(EditorView.editable.of(false));
-                    if (EditorState && EditorState.readOnly) customExtensions.push(EditorState.readOnly.of(true));
-
-                    const editorView = cm6.createEditorView(undefined, pre);
-                    const state = cm6.createEditorState(codeText, { extensions: customExtensions });
-                    editorView.setState(state);
-                } else {
-                    throw new Error("cm6 object is undefined.");
+                if (EditorView && EditorView.theme) {
+                    customExtensions.push(EditorView.theme({
+                        ".cm-gutters": { display: "none !important" },
+                        "&": { backgroundColor: "#f8fafc" },
+                        ".cm-scroller": { fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "1rem" }
+                    }));
                 }
+
+                if (lang === 'python' && typeof cm6.python === 'function') {
+                    customExtensions.push(cm6.python());
+                }
+
+                if (EditorView && EditorView.editable) customExtensions.push(EditorView.editable.of(false));
+                if (EditorState && EditorState.readOnly) customExtensions.push(EditorState.readOnly.of(true));
+
+                const editorView = cm6.createEditorView(undefined, pre);
+                const state = cm6.createEditorState(codeText, { extensions: customExtensions });
+                editorView.setState(state);
             } catch (err) {
                 console.error("PyNote Widget Pipeline: CM6 Initialization Failed:", err);
                 pre.innerHTML = '';
