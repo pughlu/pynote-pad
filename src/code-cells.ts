@@ -118,12 +118,16 @@ class CodeCellElement extends BaseNotebookCell {
                         const newContent = update.view.state.doc.toString();
                         if (this.content !== newContent) {
                             this.content = newContent;
-                            this.dispatchAction('cell-content-changed');
                         }
                     }
 
                     if (update.docChanged || update.geometryChanged) {
                         if (update.docChanged) {
+                            const newContent = update.view.state.doc.toString();
+                            if (this.content !== newContent) {
+                                this.content = newContent;
+                                this.dispatchAction('cell-content-changed');
+                            }
                             this.setButtonState('default');
                             if (coreConfig.autoClearOutputOnEdit && this.output) {
                                 this.clearOutput();

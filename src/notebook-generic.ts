@@ -242,6 +242,8 @@ class SkulptKernel {
         // --- NEW: Skulpt Expression Evaluator ---
         let executableCode = code;
         const lines = code.trimEnd().split('\n');
+        let originalLinesCount = lines.length;
+        let isWrapped = false;
         
         if (lines.length > 0) {
             const lastLine = lines[lines.length - 1];
@@ -252,6 +254,7 @@ class SkulptKernel {
             const isKeyword = /^(import|from|def|class|if|elif|else|for|while|try|except|finally|with|assert|pass|return|break|continue|yield|del|raise|global|nonlocal|print)\b/.test(lastLine.trim());
 
             if (lastLine && !/^\s/.test(lastLine) && !hasAssignment && !isKeyword) {
+                isWrapped = true;
                 // Wrap the expression safely. If eval() fails, it falls back to native execution.
                 lines[lines.length - 1] = `
 try:
@@ -269,7 +272,18 @@ except BaseException:
             await Sk.misceval.asyncToPromise(() => Sk.importMainWithBody("<stdin>", false, executableCode, true));
         } catch (err) {
             if (this.isKilled) throw new Error(`Execution stopped: Output exceeded maximum limit.`);
-            throw new Error(err.toString().replace(/<stdin>/g, "line"));
+            
+            let errStr = err.toString();
+            // Map the injected lines back to the original last line
+            errStr = errStr.replace(/(?:on\s+<stdin>\s+on\s+line\s+|on\s+line\s+|line\s+)(\d+)/g, (match, lineNumStr) => {
+                let lineNum = parseInt(lineNumStr, 10);
+                if (isWrapped && lineNum > originalLinesCount) {
+                    lineNum = originalLinesCount;
+                }
+                return "on line " + lineNum;
+            });
+            
+            throw new Error(errStr.replace(/<stdin>/g, "line"));
         } finally {
             this.currentOutputDiv = null;
         }
