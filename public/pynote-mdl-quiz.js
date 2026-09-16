@@ -93,6 +93,20 @@
     // so we just point it at the index.html and let the LMS widget manager do the handshake.
     iframe.src = `${origin}/index.html`;
 
+    iframe.onload = () => {
+      const showTopBar = embed.hasAttribute('data-show-top-bar') ? embed.getAttribute('data-show-top-bar') : 'true';
+      const showShareBtn = embed.hasAttribute('data-show-share-button') ? embed.getAttribute('data-show-share-button') : 'false';
+      
+      iframe.contentWindow.postMessage({
+        type: 'SET_WIDGET_CONFIG',
+        payload: {
+          originalTemplate: starterCode,
+          showTopBar: showTopBar === 'true',
+          showShareButton: showShareBtn === 'true'
+        }
+      }, '*');
+    };
+
     container.appendChild(iframe);
 
     // Notify LMSWidgetManager that a new container is mounted (decoupled handshake)

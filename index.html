@@ -259,6 +259,24 @@
                     }
                     break;
                 }
+                
+                case 'SET_WIDGET_CONFIG': {
+                    const extraConf = msg.payload || {};
+                    if (extraConf.showTopBar && extraConf.showTopBar !== 'false') {
+                        document.getElementById('main-header').classList.remove('hidden');
+                    }
+                    if (extraConf.showShareButton && extraConf.showShareButton !== 'false') {
+                        document.getElementById('btn-share').classList.remove('hidden');
+                    }
+                    if (extraConf.originalTemplate) {
+                        currentOriginalTemplate = extraConf.originalTemplate;
+                        document.getElementById('btn-reset').classList.remove('hidden');
+                    }
+                    if (window.notebookCore) {
+                        window.notebookCore.options = Object.assign(window.notebookCore.options, extraConf);
+                    }
+                    break;
+                }
 
                 case 'ERROR_LOCKDOWN': {
                     lockWidget(msg.payload?.message || "Fatal error occurred.");
