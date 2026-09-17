@@ -753,7 +753,29 @@ class NotebookCore {
         cellDataArray.forEach(data => {
             this.container.appendChild(this.createCellElement(data));
         });
+        
+        this.applyMaxWidth();
         this.setupDragAndDrop();
+    }
+
+    applyMaxWidth() {
+        const wrapper = document.getElementById('visual-editor-wrapper');
+        const rawWrapper = document.getElementById('raw-editor-wrapper');
+        
+        let maxWidth = 80;
+        if (this.options && this.options.maxWidthChars !== undefined) {
+            maxWidth = typeof this.options.maxWidthChars === 'string' ? parseInt(this.options.maxWidthChars, 10) : this.options.maxWidthChars;
+        }
+
+        if (wrapper && rawWrapper) {
+            if (maxWidth === -1 || isNaN(maxWidth)) {
+                wrapper.style.maxWidth = '100%';
+                rawWrapper.style.maxWidth = '100%';
+            } else {
+                wrapper.style.maxWidth = `${maxWidth}ch`;
+                rawWrapper.style.maxWidth = `${maxWidth}ch`;
+            }
+        }
     }
 
     createCellElement(data) {

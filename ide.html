@@ -156,7 +156,7 @@
                 
                 <!-- VISUAL EDITOR (Grows to fit its contents) -->
                 <!-- shrink-0 forces infinite growth, mb-12 leaves gap -->
-                <div id="visual-editor-wrapper" class="w-full max-w-5xl bg-white border border-slate-200 rounded-md shadow-sm flex flex-col shrink-0 min-h-[500px] mb-12">
+                <div id="visual-editor-wrapper" class="w-full bg-white border border-slate-200 rounded-md shadow-sm flex flex-col shrink-0 min-h-[500px] mb-12 transition-all duration-300">
                     <header id="main-header" class="hidden bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shrink-0 rounded-t-md transition-all">
                         <div class="flex items-center gap-3">
                             <div id="kernel-status-wrapper" class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md tracking-wider border border-slate-200 shadow-inner">
@@ -184,7 +184,7 @@
 
                 <!-- RAW TEXT EDITOR (Hidden by default) -->
                 <!-- flex-1 applied to fill remaining vertical and horizontal space -->
-                <div id="raw-editor-wrapper" class="w-full h-full bg-white border border-slate-200 rounded-md shadow-sm flex-col hidden flex-1 mb-12">
+                <div id="raw-editor-wrapper" class="w-full h-full bg-white border border-slate-200 rounded-md shadow-sm flex-col hidden flex-1 mb-12 transition-all duration-300">
                     <div class="bg-slate-800 text-slate-200 px-4 py-2 text-xs font-mono rounded-t-md flex justify-between shrink-0">
                         <span id="raw-editor-title">raw mode</span>
                         <span class="text-slate-400">Edits are applied when switching views or tabs.</span>
@@ -211,12 +211,18 @@
                     </select>
                 </div>
 
-                <div>
-                    <label class="block font-medium text-slate-700 mb-1">Autocomplete Engine</label>
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Autocomplete</label>
                     <select id="config-autocomplete" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded p-1.5">
-                        <option value="custom">Standard (Fast)</option>
-                        <option value="jedi">Jedi (Python Semantic)</option>
+                        <option value="custom">Standard (PyNote)</option>
+                        <option value="none">Disabled</option>
                     </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Max Width (chars)</label>
+                    <input type="number" id="config-maxwidth" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded p-1.5" placeholder="80" value="80">
+                    <p class="text-[10px] text-slate-400 mt-1 leading-tight">Width of the notebook. Use -1 for unlimited.</p>
                 </div>
                 
                 <hr class="border-slate-100">
@@ -772,11 +778,11 @@
 
         // --- 8. RHS CONFIGURATION BINDINGS ---
         
-        ['kernel', 'autocomplete', 'topbar', 'sharebtn', 'question', 'lockkernel', 'readonly', 'lockmarkdown', 'noinsert', 'nodelete', 'nomove'].forEach(key => {
+        ['kernel', 'autocomplete', 'maxwidth', 'topbar', 'sharebtn', 'question', 'lockkernel', 'readonly', 'lockmarkdown', 'noinsert', 'nodelete', 'nomove'].forEach(key => {
             const el = document.getElementById('config-' + key);
             el.addEventListener('change', (e) => {
                 const map = { 
-                    kernel: 'kernelType', autocomplete: 'autocompleteMode', topbar: 'showTopBar', sharebtn: 'showShareButton', 
+                    kernel: 'kernelType', autocomplete: 'autocompleteMode', maxwidth: 'maxWidthChars', topbar: 'showTopBar', sharebtn: 'showShareButton', 
                     question: 'questionMode', lockkernel: 'lockKernel', readonly: 'isReadOnly', lockmarkdown: 'lockAllMarkdown', 
                     noinsert: 'disableInsertAll', nodelete: 'disableDelete', nomove: 'disableMove' 
                 };

@@ -8,6 +8,7 @@ declare const CodeMirror: any;
 declare const cm6: any;
 
 interface NotebookConfig {
+    maxWidthChars?: number | string;
     widgetId?: string;
     isReadOnly?: boolean;
     questionMode?: boolean;
