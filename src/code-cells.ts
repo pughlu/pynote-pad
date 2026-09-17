@@ -46,11 +46,11 @@ class CodeCellElement extends BaseNotebookCell {
 
     mountContent(container) {
         this.editorWrap = document.createElement('div');
-        this.editorWrap.className = `w-full flex-1 flex flex-col min-h-[3.25rem] transition-all border border-transparent rounded-md relative box-border cm-wrapper ${this.isLocked ? 'pointer-events-none opacity-90 bg-slate-100' : 'bg-slate-50'}`;
+        this.editorWrap.className = `w-full flex-1 flex flex-col min-h-[3.25rem] transition-all border border-transparent rounded-md relative box-border cm-wrapper ${this.isLocked || !this.isEditable ? 'pointer-events-none opacity-90 bg-slate-100' : 'bg-slate-50'}`;
         container.appendChild(this.editorWrap);
         
         this.editorWrap.addEventListener('focusin', () => {
-            if (window.notebookCore && !this.isLocked) {
+            if (window.notebookCore && !this.isLocked && this.isEditable) {
                 window.notebookCore.activeCodeEditor = this.editorView;
                 
                 document.querySelectorAll('notebook-code-cell .cm-wrapper').forEach(el => {
@@ -102,7 +102,7 @@ class CodeCellElement extends BaseNotebookCell {
                 ]));
             }
 
-            if (this.isLocked) {
+            if (this.isLocked || !this.isEditable) {
                 const ViewObj = cm6.EditorView;
                 if (ViewObj && ViewObj.editable) customExtensions.push(ViewObj.editable.of(false));
                 
@@ -254,7 +254,7 @@ class CodeCellElement extends BaseNotebookCell {
         if (this.checkScroll) this.checkScroll();
     }
 
-    focusCell() { if(this.editorView && !this.isLocked) this.editorView.focus(); }
+    focusCell() { if(this.editorView && !this.isLocked && this.isEditable) this.editorView.focus(); }
 
     applyHysteresis() {
         if (!this.outputContent) return;

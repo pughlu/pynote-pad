@@ -13,10 +13,28 @@ class NotebookFormatConverter {
             const type = data.type;
             
             const metaObj: any = { ...data.metadata };
+            
+            // Clean legacy locked tag if it exists
+            delete metaObj.locked;
+            
+            // Apply current states
             if (data.isLocked) metaObj.locked = true;
-            else delete metaObj.locked;
+            
+            // If locked is true, the others are implicitly false, so we don't need to write them 
+            // unless they diverge from the lock (e.g. locked but editable: true).
+            // However, to be perfectly clear and match Jupyter standards, if the granular tags are false, we write them.
+            if (data.isEditable === false) metaObj.editable = false;
+            else delete metaObj.editable;
+            
+            if (data.isDeletable === false) metaObj.deletable = false;
+            else delete metaObj.deletable;
+            
+            if (data.isMoveable === false) metaObj.moveable = false;
+            else delete metaObj.moveable;
+
             if (data.isHidden) metaObj.hidden = true;
             else delete metaObj.hidden;
+            
             if (type === 'code') metaObj.lang = 'python';
 
             const metaStr = Object.keys(metaObj).length > 0 ? ` ${JSON.stringify(metaObj)}` : '';
@@ -96,6 +114,9 @@ class NotebookFormatConverter {
                 let type = 'code';
                 let isLocked = false;
                 let isHidden = false;
+                let isEditable = true;
+                let isDeletable = true;
+                let isMoveable = true;
                 
                 const typeMatch = metaRaw.match(/\[([a-zA-Z]+)\]/);
                 if (typeMatch) type = typeMatch[1];
@@ -105,7 +126,17 @@ class NotebookFormatConverter {
                 if (jsonMatch) {
                     try {
                         const metaObj = JSON.parse(jsonMatch[1].replace(/'/g, '"'));
-                        if (metaObj.locked) isLocked = true;
+                        if (metaObj.locked) {
+                            isLocked = true;
+                            // Locked shortcut defaults others to false unless explicitly overridden
+                            isEditable = metaObj.editable !== undefined ? metaObj.editable : false;
+                            isDeletable = metaObj.deletable !== undefined ? metaObj.deletable : false;
+                            isMoveable = metaObj.moveable !== undefined ? metaObj.moveable : false;
+                        } else {
+                            if (metaObj.editable === false) isEditable = false;
+                            if (metaObj.deletable === false) isDeletable = false;
+                            if (metaObj.moveable === false) isMoveable = false;
+                        }
                         if (metaObj.hidden) isHidden = true;
                         parsedMeta = metaObj;
                     } catch (e) {
@@ -118,10 +149,10 @@ class NotebookFormatConverter {
                     isLocked = true;
                 }
                 
-                currentCell = { type, lines: [], isLocked, isHidden, isEditing: false, metadata: parsedMeta };
+                currentCell = { type, lines: [], isLocked, isHidden, isEditable, isDeletable, isMoveable, isEditing: false, metadata: parsedMeta };
             } else {
                 if (!currentCell) {
-                    currentCell = { type: 'code', lines: [], isLocked: false, isHidden: false, isEditing: false };
+                    currentCell = { type: 'code', lines: [], isLocked: false, isHidden: false, isEditable: true, isDeletable: true, isMoveable: true, isEditing: false };
                 }
                 currentCell.lines.push(line);
             }

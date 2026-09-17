@@ -199,10 +199,10 @@
         <!-- RHS: CONFIGURATION PANEL -->
         <aside id="rhs-panel" class="bg-white flex flex-col shrink-0 overflow-hidden relative z-10 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
             <div class="px-3 py-2 border-b border-slate-200 bg-slate-50 font-semibold text-xs text-slate-500 uppercase tracking-wider shrink-0">
-                Configuration
+                Global Config
             </div>
             
-            <div class="p-4 flex flex-col gap-4 text-sm overflow-y-auto">
+            <div class="p-4 flex flex-col gap-4 text-sm overflow-y-auto flex-1 min-h-0">
                 <div>
                     <label class="block font-medium text-slate-700 mb-1">Execution Kernel</label>
                     <select id="config-kernel" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded p-1.5">
@@ -240,15 +240,18 @@
                 </div>
             </div>
             
-            <div class="px-3 py-2 border-y border-slate-200 bg-slate-50 font-semibold text-xs text-slate-500 uppercase tracking-wider shrink-0 mt-2">
+            <div class="px-3 py-2 border-y border-slate-200 bg-slate-50 font-semibold text-xs text-slate-500 uppercase tracking-wider shrink-0">
                 Cell Config <span id="cell-config-indicator" class="text-[10px] ml-2 px-1.5 py-0.5 bg-slate-200 rounded-sm text-slate-600">None</span>
             </div>
             
-            <div id="cell-config-panel" class="p-4 flex flex-col gap-4 text-sm overflow-y-auto opacity-50 pointer-events-none transition-opacity">
+            <div id="cell-config-panel" class="p-4 flex flex-col gap-4 text-sm overflow-y-auto opacity-50 pointer-events-none transition-opacity flex-1 min-h-0">
                 <div class="text-xs text-slate-500 mb-2">Select a cell in the editor to configure it.</div>
                 
                 <div class="flex flex-col gap-2.5">
-                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="cell-config-locked" onchange="applyCellConfig()" class="w-4 h-4 text-blue-600 rounded"><span class="font-medium text-slate-700">Locked</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="cell-config-locked" onchange="applyCellConfig()" class="w-4 h-4 text-blue-600 rounded"><span class="font-medium text-slate-700">Locked (Overrides All)</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="cell-config-editable" onchange="applyCellConfig()" class="w-4 h-4 text-blue-600 rounded" checked><span class="font-medium text-slate-700">Editable</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="cell-config-deletable" onchange="applyCellConfig()" class="w-4 h-4 text-blue-600 rounded" checked><span class="font-medium text-slate-700">Deletable</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="cell-config-moveable" onchange="applyCellConfig()" class="w-4 h-4 text-blue-600 rounded" checked><span class="font-medium text-slate-700">Moveable</span></label>
                     <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" id="cell-config-hidden" onchange="applyCellConfig()" class="w-4 h-4 text-blue-600 rounded"><span class="font-medium text-slate-700">Hidden</span></label>
                 </div>
                 
@@ -299,7 +302,7 @@
         };
         let activeFileName = 'untitled';
         let currentViewMode = 'visual'; // 'visual', 'flatfile', 'jupyter'
-        let activeCellIndex = -1;
+        let activeCellIndices = [];
 
         let currentOptions = {
             showTopBar: true, kernelType: 'skulpt', autocompleteMode: 'custom', showShareButton: false, lockKernel: false,
@@ -343,9 +346,24 @@
                     const pynoteCells = ipynb.cells.map(c => {
                         const type = c.cell_type === 'markdown' ? 'markdown' : 'code';
                         const str = Array.isArray(c.source) ? c.source.join('') : (c.source || '');
-                        const locked = c.metadata && c.metadata.pynote_locked ? '{"locked":true}' : '';
-                        if (type === 'code') return `# %% [code] ${locked}\n${str.replace(/\\n+$/, '')}`;
-                        return `# %% [markdown] ${locked}\n"""\n${str.replace(/\\n+$/, '')}\n"""`;
+                        
+                        const metaObj = { ...c.metadata };
+                        delete metaObj.pynote_locked; // clean legacy
+                        if (metaObj.editable === true) delete metaObj.editable;
+                        if (metaObj.deletable === true) delete metaObj.deletable;
+                        if (Array.isArray(metaObj.tags)) {
+                            if (metaObj.tags.includes('locked')) {
+                                metaObj.locked = true;
+                                metaObj.tags = metaObj.tags.filter(t => t !== 'locked');
+                            }
+                            if (metaObj.tags.length === 0) {
+                                delete metaObj.tags;
+                            }
+                        }
+                        const metaStr = Object.keys(metaObj).length > 0 ? ` ${JSON.stringify(metaObj)}` : '';
+                        
+                        if (type === 'code') return `# %% [code]${metaStr}\n${str.replace(/\\n+$/, '')}`;
+                        return `# %% [markdown]${metaStr}\n"""\n${str.replace(/\\n+$/, '')}\n"""`;
                     });
                     virtualFS[activeFileName] = pynoteCells.join('\n\n');
                 } catch (e) {
@@ -436,7 +454,12 @@
                     const parsedCells = window.NotebookFormatConverter.deserializeFromFlat(virtualFS[activeFileName] || '');
                     const cells = parsedCells.map(c => ({
                         cell_type: c.type === 'code' ? 'code' : 'markdown',
-                        metadata: { pynote_locked: !!c.isLocked },
+                        metadata: { 
+                            ...c.metadata,
+                            ...(c.isEditable === false || c.isLocked ? { editable: false } : {}),
+                            ...(c.isDeletable === false || c.isLocked ? { deletable: false } : {}),
+                            ...(c.isLocked ? { tags: ['locked'] } : {})
+                        },
                         source: c.content ? c.content.split('\n').map((l, i, arr) => l + (i === arr.length - 1 ? '' : '\n')) : [],
                         ...(c.type === 'code' ? { execution_count: null, outputs: [] } : {})
                     }));
@@ -450,43 +473,55 @@
 
         // --- 4.5. CELL SELECTION & CONFIG LOGIC ---
         function handleCellFocus(e) {
-            const cellWrapper = e.target.closest('.cell-wrapper');
-            if (!cellWrapper || !cellWrapper.parentNode) return;
-            
-            const children = Array.from(cellWrapper.parentNode.children);
-            const index = children.indexOf(cellWrapper);
-            if (index !== -1 && index !== activeCellIndex) {
-                activeCellIndex = index;
-                updateRhsCellPanel();
-            }
+            // Deprecated: We use custom events from notebookCore for multi-select.
         }
+
+        window.addEventListener('cell-selection-changed', (e) => {
+            activeCellIndices = e.detail.indices;
+            updateRhsCellPanel();
+        });
 
         function updateRhsCellPanel() {
             const panel = document.getElementById('cell-config-panel');
             const indicator = document.getElementById('cell-config-indicator');
             
-            if (activeCellIndex === -1) {
+            if (!activeCellIndices || activeCellIndices.length === 0) {
                 panel.classList.add('opacity-50', 'pointer-events-none');
                 indicator.innerText = "None";
                 document.getElementById('cell-config-locked').checked = false;
+                document.getElementById('cell-config-editable').checked = true;
+                document.getElementById('cell-config-deletable').checked = true;
+                document.getElementById('cell-config-moveable').checked = true;
                 document.getElementById('cell-config-hidden').checked = false;
                 document.getElementById('cell-config-metadata').value = '';
                 return;
             }
             
-            const cells = window.NotebookFormatConverter.deserializeFromFlat(virtualFS[activeFileName] || '');
-            const cell = cells[activeCellIndex];
-            if (!cell) return;
-            
             panel.classList.remove('opacity-50', 'pointer-events-none');
-            indicator.innerText = `Cell #${activeCellIndex + 1}`;
             
-            document.getElementById('cell-config-locked').checked = !!cell.isLocked;
-            document.getElementById('cell-config-hidden').checked = !!cell.isHidden;
+            if (activeCellIndices.length === 1) {
+                indicator.innerText = `Cell #${activeCellIndices[0] + 1}`;
+            } else {
+                indicator.innerText = `${activeCellIndices.length} Cells`;
+            }
+
+            // Get state from the first selected cell to populate the config panel initially
+            const cells = window.NotebookFormatConverter.deserializeFromFlat(virtualFS[activeFileName] || '');
+            const firstCell = cells[activeCellIndices[0]];
+            if (!firstCell) return;
+            
+            document.getElementById('cell-config-locked').checked = !!firstCell.isLocked;
+            document.getElementById('cell-config-editable').checked = firstCell.isEditable !== false;
+            document.getElementById('cell-config-deletable').checked = firstCell.isDeletable !== false;
+            document.getElementById('cell-config-moveable').checked = firstCell.isMoveable !== false;
+            document.getElementById('cell-config-hidden').checked = !!firstCell.isHidden;
             
             // Clean up internal metadata keys before displaying generic metadata
-            const cleanMeta = { ...(cell.metadata || {}) };
+            const cleanMeta = { ...(firstCell.metadata || {}) };
             delete cleanMeta.locked;
+            delete cleanMeta.editable;
+            delete cleanMeta.deletable;
+            delete cleanMeta.moveable;
             delete cleanMeta.hidden;
             delete cleanMeta.lang;
             
@@ -494,9 +529,12 @@
         }
 
         window.applyCellConfig = function() {
-            if (activeCellIndex === -1) return;
+            if (!activeCellIndices || activeCellIndices.length === 0) return;
             
             const isLocked = document.getElementById('cell-config-locked').checked;
+            const isEditable = document.getElementById('cell-config-editable').checked;
+            const isDeletable = document.getElementById('cell-config-deletable').checked;
+            const isMoveable = document.getElementById('cell-config-moveable').checked;
             const isHidden = document.getElementById('cell-config-hidden').checked;
             const rawMeta = document.getElementById('cell-config-metadata').value.trim();
             
@@ -505,26 +543,46 @@
                 try {
                     customMeta = JSON.parse(rawMeta);
                 } catch (e) {
-                    // Invalid JSON, don't apply anything and wait for them to fix it
-                    return;
+                    return; // Wait for valid JSON
                 }
             }
             
-            const cells = window.NotebookFormatConverter.deserializeFromFlat(virtualFS[activeFileName] || '');
-            if (!cells[activeCellIndex]) return;
+            // Apply changes directly to DOM elements so syncCurrentState captures them
+            const container = document.getElementById('pynote-mount-point');
+            if (container && container.firstElementChild) {
+                const domCells = Array.from(container.firstElementChild.children);
+                activeCellIndices.forEach(idx => {
+                    const domCell = domCells[idx];
+                    if (domCell) {
+                        // Apply properties to the custom element
+                        if (isLocked) domCell.setAttribute('is-locked', '');
+                        else domCell.removeAttribute('is-locked');
+                        
+                        if (!isEditable) domCell.setAttribute('is-editable', 'false');
+                        else domCell.removeAttribute('is-editable');
+                        
+                        if (!isDeletable) domCell.setAttribute('is-deletable', 'false');
+                        else domCell.removeAttribute('is-deletable');
+                        
+                        if (!isMoveable) domCell.setAttribute('is-moveable', 'false');
+                        else domCell.removeAttribute('is-moveable');
+                        
+                        if (isHidden) domCell.setAttribute('is-hidden', '');
+                        else domCell.removeAttribute('is-hidden');
+                        
+                        // We also need to update the internal js properties if they exist
+                        domCell.isLocked = isLocked;
+                        domCell.isEditable = isEditable;
+                        domCell.isDeletable = isDeletable;
+                        domCell.isMoveable = isMoveable;
+                        domCell.isHidden = isHidden;
+                        domCell.metadata = customMeta;
+                    }
+                });
+            }
             
-            cells[activeCellIndex].isLocked = isLocked;
-            cells[activeCellIndex].isHidden = isHidden;
-            cells[activeCellIndex].metadata = customMeta;
-            
-            // Serialize back to flatfile string
-            virtualFS[activeFileName] = window.NotebookFormatConverter.serializeToFlat(cells);
-            
-            // We must re-render the workspace to apply the lock/hidden visually,
-            // but we use a short timeout to let the input events resolve first
-            setTimeout(() => {
-                if (syncCurrentState()) renderWorkspace();
-            }, 10);
+            // Sync to virtualFS (Reads DOM)
+            syncCurrentState();
         };
 
         // --- 5. UI GENERATORS ---
@@ -669,7 +727,13 @@
             if (!syncCurrentState()) return;
             const parsedCells = window.NotebookFormatConverter.deserializeFromFlat(virtualFS[activeFileName]);
             const cells = parsedCells.map(c => ({
-                cell_type: c.type === 'code' ? 'code' : 'markdown', metadata: { pynote_locked: !!c.isLocked },
+                cell_type: c.type === 'code' ? 'code' : 'markdown', 
+                metadata: { 
+                    ...c.metadata,
+                    ...(c.isEditable === false || c.isLocked ? { editable: false } : {}),
+                    ...(c.isDeletable === false || c.isLocked ? { deletable: false } : {}),
+                    ...(c.isLocked ? { tags: ['locked'] } : {})
+                },
                 source: c.content ? c.content.split('\n').map((l, i, arr) => l + (i === arr.length - 1 ? '' : '\n')) : [],
                 ...(c.type === 'code' ? { execution_count: null, outputs: [] } : {})
             }));
@@ -767,7 +831,24 @@
                 if (file.name.endsWith('.ipynb')) {
                     try {
                         const ipynb = JSON.parse(content);
-                        content = ipynb.cells.map(c => `# %% [${c.cell_type === 'markdown' ? 'markdown' : 'code'}]\n${(Array.isArray(c.source) ? c.source.join('') : c.source || '').replace(/\\n+$/, '')}`).join('\n\n');
+                        content = ipynb.cells.map(c => {
+                            const metaObj = { ...c.metadata };
+                            delete metaObj.pynote_locked; // clean legacy
+                            if (metaObj.editable === true) delete metaObj.editable;
+                            if (metaObj.deletable === true) delete metaObj.deletable;
+                            if (Array.isArray(metaObj.tags)) {
+                                if (metaObj.tags.includes('locked')) {
+                                    metaObj.locked = true;
+                                    metaObj.tags = metaObj.tags.filter(t => t !== 'locked');
+                                }
+                                if (metaObj.tags.length === 0) {
+                                    delete metaObj.tags;
+                                }
+                            }
+                            
+                            const metaStr = Object.keys(metaObj).length > 0 ? ` ${JSON.stringify(metaObj)}` : '';
+                            return `# %% [${c.cell_type === 'markdown' ? 'markdown' : 'code'}]${metaStr}\n${(Array.isArray(c.source) ? c.source.join('') : c.source || '').replace(/\\n+$/, '')}`;
+                        }).join('\n\n');
                     } catch (e) { alert("Invalid Jupyter Notebook"); return; }
                 }
                 virtualFS[baseName] = content;

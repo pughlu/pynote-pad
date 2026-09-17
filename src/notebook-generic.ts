@@ -387,8 +387,12 @@ class BaseNotebookCell extends HTMLElement {
     resizeObserver!: ResizeObserver | null;
     cellId!: string;
     cellType!: string;
-    isLocked!: boolean;
     content!: string;
+    isLocked!: boolean;
+    isEditable!: boolean;
+    isDeletable!: boolean;
+    isMoveable!: boolean;
+    isHidden!: boolean;
     mainBox!: HTMLDivElement;
     contentArea!: HTMLDivElement;
     botInserter?: HTMLDivElement;
@@ -406,8 +410,13 @@ class BaseNotebookCell extends HTMLElement {
 
         this.cellId = this.getAttribute('cell-id') || Math.random().toString(36).substring(2, 9);
         this.cellType = this.getAttribute('cell-type') || 'text';
-        this.isLocked = this.hasAttribute('is-locked');
         this.content = this.getAttribute('content') || '';
+        this.isLocked = this.hasAttribute('is-locked');
+        this.isHidden = this.hasAttribute('is-hidden');
+        // By default these are true, so we check if they are explicitly set to false
+        this.isEditable = this.getAttribute('is-editable') !== 'false';
+        this.isDeletable = this.getAttribute('is-deletable') !== 'false';
+        this.isMoveable = this.getAttribute('is-moveable') !== 'false';
 
         this.renderShell();
         this.mountContent(this.contentArea);
@@ -442,7 +451,7 @@ class BaseNotebookCell extends HTMLElement {
         }
 
         // --- UPDATED: Hide the drag handle if movement is disabled ---
-        if (!this.isLocked && !isReadOnlyGlobal && !disableMove) {
+        if (!this.isLocked && this.isMoveable && !isReadOnlyGlobal && !disableMove) {
             const dragHandle = document.createElement('div');
             dragHandle.className = 'drag-handle absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-blue-600 group-hover/cell:bg-blue-400 cursor-grab z-30 rounded-l-md opacity-0 group-hover/cell:opacity-100 transition-all';
             this.mainBox.appendChild(dragHandle);
@@ -476,7 +485,7 @@ class BaseNotebookCell extends HTMLElement {
                 toolbar.appendChild(dropdownWrap);
             }
 
-            if (!disableDelete) {
+            if (!disableDelete && this.isDeletable) {
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'text-slate-400 hover:text-red-500 p-0.5 rounded transition-colors ml-0.5 pl-1';
                 if (!disableTypeChange) deleteBtn.classList.add('border-l', 'border-slate-200');
@@ -487,7 +496,7 @@ class BaseNotebookCell extends HTMLElement {
             }
 
             // Only append the toolbar container if it actually has tools inside it!
-            if (!disableTypeChange || !disableDelete) {
+            if (!disableTypeChange || (!disableDelete && this.isDeletable)) {
                 this.contentArea.appendChild(toolbar);
             }
         }
@@ -546,7 +555,16 @@ class BaseNotebookCell extends HTMLElement {
     }
 
     toJSON() {
-        return { id: this.cellId, type: this.cellType, content: this.content, isLocked: this.isLocked };
+        return { 
+            id: this.cellId, 
+            type: this.cellType, 
+            content: this.content, 
+            isLocked: this.isLocked,
+            isHidden: this.isHidden,
+            isEditable: this.isEditable,
+            isDeletable: this.isDeletable,
+            isMoveable: this.isMoveable
+        };
     }
 }
 window.BaseNotebookCell = BaseNotebookCell;
@@ -559,6 +577,7 @@ class NotebookCore {
     activeCodeEditor!: any;
     kernel!: any;
     sortable!: any;
+    selectedIndices!: number[];
 
     constructor(containerId: string, options: any = {}) {
         this.container = document.getElementById(containerId);
@@ -609,6 +628,7 @@ class NotebookCore {
         this.isReadOnly = this.options.isReadOnly;
         this.defaultCellType = this.options.defaultCellType;
         this.activeCodeEditor = null;
+        this.selectedIndices = [];
 
         const topInserter = document.getElementById('top-inserter');
         if (topInserter) {
@@ -667,6 +687,50 @@ class NotebookCore {
         if ((this.container as any)._hasEventListeners) return;
         (this.container as any)._hasEventListeners = true;
 
+        this.container.addEventListener('mousedown', (e) => {
+            const cellElement = (e.target as Element).closest('notebook-code-cell, notebook-markdown-cell');
+            if (!cellElement) return;
+            
+            const children = Array.from(this.container.children);
+            const index = children.indexOf(cellElement as any);
+            if (index === -1) return;
+            
+            let selectionChanged = false;
+            
+            if (e.shiftKey && this.selectedIndices.length > 0) {
+                // Range selection
+                const lastIndex = this.selectedIndices[this.selectedIndices.length - 1];
+                const start = Math.min(lastIndex, index);
+                const end = Math.max(lastIndex, index);
+                this.selectedIndices = [];
+                for (let i = start; i <= end; i++) {
+                    this.selectedIndices.push(i);
+                }
+                selectionChanged = true;
+                e.preventDefault(); // Prevent text selection when shift clicking
+            } else if (e.metaKey || e.ctrlKey) {
+                // Toggle selection
+                const pos = this.selectedIndices.indexOf(index);
+                if (pos === -1) {
+                    this.selectedIndices.push(index);
+                } else {
+                    this.selectedIndices.splice(pos, 1);
+                }
+                selectionChanged = true;
+            } else {
+                // Standard click
+                if (this.selectedIndices.length !== 1 || this.selectedIndices[0] !== index) {
+                    this.selectedIndices = [index];
+                    selectionChanged = true;
+                }
+            }
+            
+            if (selectionChanged) {
+                this.updateCellSelectionVisuals();
+                window.dispatchEvent(new CustomEvent('cell-selection-changed', { detail: { indices: [...this.selectedIndices] } }));
+            }
+        }, true); // Capture phase to catch it before CodeMirror might stop propagation
+
         this.container.addEventListener('cell-content-changed', () => this.syncToServer());
         this.container.addEventListener('cell-height-changed', () => {
             if (typeof sendHeight === 'function') requestAnimationFrame(sendHeight);
@@ -676,7 +740,7 @@ class NotebookCore {
             if (this.options.disableDelete) return; // <-- LOGIC SAFEGUARD
 
             const el = (e.target as any);
-            if (!this.isReadOnly && el && !el.isLocked) {
+            if (!this.isReadOnly && el && !el.isLocked && el.isDeletable) {
                 el.remove();
                 this.syncToServer();
             }
@@ -694,7 +758,7 @@ class NotebookCore {
         this.container.addEventListener('cell-type-changed', (e) => {
             if (this.isReadOnly) return;
             const oldEl = (e.target as any);
-            if (oldEl.isLocked) return;
+            if (oldEl.isLocked || !oldEl.isMoveable) return;
 
             const newType = ((e as any).detail as any).newType;
             const content = ((e as any).detail as any).content;
@@ -739,6 +803,24 @@ class NotebookCore {
 
         // Re-initialize using the currently selected type
         this.initKernel();
+    }
+
+    updateCellSelectionVisuals() {
+        const children = Array.from(this.container.children);
+        children.forEach((cell, idx) => {
+            const isSelected = this.selectedIndices.includes(idx);
+            const wrapper = cell.firstElementChild; // The cell-wrapper div
+            if (wrapper) {
+                if (isSelected) {
+                    wrapper.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2', 'ring-offset-slate-50', 'z-20');
+                    wrapper.classList.remove('border-slate-200');
+                    wrapper.classList.add('border-transparent');
+                } else {
+                    wrapper.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2', 'ring-offset-slate-50', 'z-20', 'border-transparent');
+                    wrapper.classList.add('border-slate-200');
+                }
+            }
+        });
     }
 
     loadData(cellDataArray: any) {
@@ -790,6 +872,10 @@ class NotebookCore {
         if (data.output) cell.setAttribute('output', data.output);
         if (data.isEditing) cell.setAttribute('is-editing', '');
         if (data.isLocked) cell.setAttribute('is-locked', '');
+        if (data.isHidden) cell.setAttribute('is-hidden', '');
+        if (data.isEditable === false) cell.setAttribute('is-editable', 'false');
+        if (data.isDeletable === false) cell.setAttribute('is-deletable', 'false');
+        if (data.isMoveable === false) cell.setAttribute('is-moveable', 'false');
         return cell;
     }
 
