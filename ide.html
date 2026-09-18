@@ -39,9 +39,6 @@
     <script type="module" src="/src/markdown-cells-embedded-code.ts"></script>
     
     <style>
-        /* Force App Layout */
-        body { font-family: 'Inter', sans-serif; margin: 0; overflow: hidden !important; height: 100vh !important; width: 100vw !important; }
-        
         /* Split.js Gutter Styling */
         .gutter { background-color: #f1f5f9; background-repeat: no-repeat; background-position: 50%; transition: background-color 0.2s; }
         .gutter:hover { background-color: #cbd5e1; }
@@ -54,7 +51,8 @@
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
-<body class="flex flex-col bg-slate-50 text-slate-800">
+<!-- CRITICAL FIX #1: The body MUST be h-screen and overflow-hidden -->
+<body class="h-screen w-screen overflow-hidden flex flex-col bg-slate-50 text-slate-800">
 
     <!-- Hidden File Input for Loading -->
     <input type="file" id="file-upload" class="hidden" accept=".py,.txt,.json,.ipynb">
@@ -133,7 +131,7 @@
                 </div>
             </div>
             
-            <div id="lhs-file-panel" class="flex-1 overflow-y-auto p-2">
+            <div id="lhs-file-panel" class="flex-1 overflow-y-auto p-2 min-h-0">
                 <div id="file-list" class="flex flex-col gap-0.5"></div>
                 <div id="drop-indicator" class="hidden h-full flex-col items-center justify-center text-slate-400 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50/50 m-2">
                     <span class="text-sm font-medium">Drop file here</span>
