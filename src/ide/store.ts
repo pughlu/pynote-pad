@@ -43,7 +43,8 @@ export class IDEStore {
             activeFileName,
             viewMode: 'visual',
             options: { ...DEFAULT_OPTIONS },
-            selectedCellIndices: []
+            selectedCellIndices: [],
+            selectedFiles: new Set<string>()
         };
     }
 
@@ -73,6 +74,10 @@ export class IDEStore {
 
     get selectedCellIndices(): Readonly<number[]> {
         return this.state.selectedCellIndices;
+    }
+
+    get selectedFiles(): Readonly<Set<string>> {
+        return this.state.selectedFiles;
     }
 
     /**
@@ -133,6 +138,7 @@ export class IDEStore {
         if (!this.state.files[fileName]) return;
 
         delete this.state.files[fileName];
+        this.state.selectedFiles.delete(fileName);
         this.bus.emit('file:closed', { fileName });
 
         const remaining = Object.keys(this.state.files);
@@ -157,6 +163,11 @@ export class IDEStore {
 
         this.state.files[newName] = this.state.files[oldName];
         delete this.state.files[oldName];
+
+        if (this.state.selectedFiles.has(oldName)) {
+            this.state.selectedFiles.delete(oldName);
+            this.state.selectedFiles.add(newName);
+        }
 
         if (this.state.activeFileName === oldName) {
             this.state.activeFileName = newName;
@@ -199,6 +210,19 @@ export class IDEStore {
     setSelectedCellIndices(indices: number[]): void {
         this.state.selectedCellIndices = indices;
         this.bus.emit('cell:selection-changed', { indices });
+    }
+
+    /**
+     * Toggle file selection for export
+     */
+    toggleFileSelection(fileName: string): void {
+        if (this.state.selectedFiles.has(fileName)) {
+            this.state.selectedFiles.delete(fileName);
+            this.bus.emit('file:selection-toggled', { fileName, isSelected: false });
+        } else {
+            this.state.selectedFiles.add(fileName);
+            this.bus.emit('file:selection-toggled', { fileName, isSelected: true });
+        }
     }
 
     // --- URL COMPRESSION HELPERS (Pragmatic: encapsulated pure utilities) ---

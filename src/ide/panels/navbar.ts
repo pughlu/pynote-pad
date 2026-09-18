@@ -84,6 +84,9 @@ export class NavbarPanel implements IDEPanel {
                     <a href="#" id="menu-view-visual" class="block px-4 py-1.5 hover:bg-blue-500 hover:text-white flex items-center justify-between">
                         <span>Visual Editor</span> <span id="check-view-visual" class="text-blue-500 font-bold view-check">✓</span>
                     </a>
+                    <a href="#" id="menu-view-preview" class="block px-4 py-1.5 hover:bg-blue-500 hover:text-white flex items-center justify-between">
+                        <span>Preview Mode</span> <span id="check-view-preview" class="text-blue-500 font-bold hidden view-check">✓</span>
+                    </a>
                     <a href="#" id="menu-view-flatfile" class="block px-4 py-1.5 hover:bg-blue-500 hover:text-white flex items-center justify-between">
                         <span>.pynote.py (Raw)</span> <span id="check-view-flatfile" class="text-blue-500 font-bold hidden view-check">✓</span>
                     </a>
@@ -299,6 +302,10 @@ export class NavbarPanel implements IDEPanel {
             e.preventDefault();
             this.store.setViewMode('visual');
         });
+        this.container.querySelector('#menu-view-preview')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.store.setViewMode('preview');
+        });
         this.container.querySelector('#menu-view-flatfile')?.addEventListener('click', (e) => {
             e.preventDefault();
             this.store.setViewMode('flatfile');
@@ -354,7 +361,11 @@ export class NavbarPanel implements IDEPanel {
         }
 
         let questionsXml = '';
-        for (const [fName, fContent] of Object.entries(this.store.files)) {
+        const filesToExport = this.store.selectedFiles.size > 0 
+            ? Object.entries(this.store.files).filter(([name]) => this.store.selectedFiles.has(name))
+            : Object.entries(this.store.files);
+
+        for (const [fName, fContent] of filesToExport) {
             const flatData = fContent.replace(/]]>/g, ']]]]><![CDATA[>');
             const payloadHtml = `<pynote ${attrs}>\n${flatData}\n</pynote>\n<script src="https://pynote-pad.pages.dev/pynote-mdl-quiz.js"></script>`;
 

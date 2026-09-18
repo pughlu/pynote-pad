@@ -53,7 +53,20 @@ class NotebookFormatConverter {
         
         let headerStr = '# %% [pynote-start]\n';
         if (cells.globalConfig && Object.keys(cells.globalConfig).length > 0) {
-            headerStr += `# %% [config]\n"""\n${JSON.stringify(cells.globalConfig, null, 2)}\n"""\n\n`;
+            const defaults = {
+                showTopBar: true, kernelType: 'skulpt', autocompleteMode: 'custom', showShareButton: false,
+                lockKernel: false, questionMode: false, isReadOnly: false, disableInsertAll: false,
+                disableDelete: false, disableMove: false, lockAllMarkdown: false, maxWidthChars: 80
+            };
+            const minimalConfig: any = {};
+            for (const key in cells.globalConfig) {
+                if (cells.globalConfig[key] !== (defaults as any)[key] && cells.globalConfig[key] !== undefined) {
+                    minimalConfig[key] = cells.globalConfig[key];
+                }
+            }
+            if (Object.keys(minimalConfig).length > 0) {
+                headerStr += `# %% [config]\n"""\n${JSON.stringify(minimalConfig, null, 2)}\n"""\n\n`;
+            }
         }
         
         return headerStr + serializedCells.join('\n\n') + '\n# %% [pynote-end]';

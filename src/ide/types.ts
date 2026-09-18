@@ -1,7 +1,7 @@
 // src/ide/types.ts
 // Pragmatic Programmer: Design by Contract & Type-Safe Communication
 
-export type ViewMode = 'visual' | 'flatfile' | 'jupyter';
+export type ViewMode = 'visual' | 'preview' | 'flatfile' | 'jupyter';
 
 export interface IDEOptions {
     showTopBar?: boolean;
@@ -34,6 +34,7 @@ export interface IDEState {
     viewMode: ViewMode;
     options: IDEOptions;
     selectedCellIndices: number[];
+    selectedFiles: Set<string>;
 }
 
 export interface IDEEvents {
@@ -45,6 +46,7 @@ export interface IDEEvents {
     'file:imported': { fileName: string; content: string };
     'file:content-updated': { fileName: string; content: string };
     'files:changed': { files: Record<string, string>; activeFileName: string };
+    'file:selection-toggled': { fileName: string; isSelected: boolean };
 
     // View Events
     'view:changed': { viewMode: ViewMode };

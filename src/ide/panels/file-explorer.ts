@@ -69,7 +69,8 @@ export class FileExplorerPanel implements IDEPanel {
         // Subscribe to store updates via EventBus
         this.unsubs.push(
             this.bus.on('files:changed', () => this.renderFileList()),
-            this.bus.on('file:selected', () => this.renderFileList())
+            this.bus.on('file:selected', () => this.renderFileList()),
+            this.bus.on('file:selection-toggled', () => this.renderFileList())
         );
 
         // Drag & Drop
@@ -119,12 +120,14 @@ export class FileExplorerPanel implements IDEPanel {
 
         Object.keys(files).forEach(fileName => {
             const isActive = fileName === activeName;
+            const isSelected = this.store.selectedFiles.has(fileName);
             const btn = document.createElement('button');
             btn.className = `w-full text-left px-3 py-1.5 rounded text-sm truncate transition-colors flex items-center gap-2 group ${
                 isActive ? 'bg-blue-100 text-blue-700 font-medium' : 'hover:bg-slate-100 text-slate-600'
             }`;
 
             btn.innerHTML = `
+                <input type="checkbox" class="file-select-cb mr-1 rounded" ${isSelected ? 'checked' : ''}>
                 <svg class="w-4 h-4 shrink-0 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                 </svg>
@@ -132,6 +135,14 @@ export class FileExplorerPanel implements IDEPanel {
             `;
 
             btn.onclick = () => this.store.setActiveFile(fileName);
+
+            const cb = btn.querySelector('.file-select-cb') as HTMLInputElement;
+            if (cb) {
+                cb.onclick = (e) => {
+                    e.stopPropagation();
+                    this.store.toggleFileSelection(fileName);
+                };
+            }
 
             const span = btn.querySelector('span');
             if (span) {

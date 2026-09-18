@@ -616,11 +616,11 @@ class NotebookCore {
         // If questionMode is requested, we rewrite the defaults to be strict.
         if (options.questionMode) {
             defaultConfig.lockAllMarkdown = true;
-            defaultConfig.disableMove = true;
-            defaultConfig.disableDelete = true;
+            defaultConfig.disableMove = false;
+            defaultConfig.disableDelete = false;
             defaultConfig.disableTypeChange = true;
-            defaultConfig.disableInsertAll = true;
-            defaultConfig.disableInsertTop = true;
+            defaultConfig.disableInsertAll = false;
+            defaultConfig.disableInsertTop = false;
         }
 
         // Merge the incoming options OVER the new defaults. 
@@ -662,6 +662,8 @@ class NotebookCore {
             Array.from(this.container.children).forEach(cell => { if ((cell as any).refresh) (cell as any).refresh(); });
             if (typeof sendHeight === 'function') sendHeight();
         });
+        
+        this.updateQuestionModeVisibility();
     }
 
     // --- NEW: Dynamic Kernel Initialization ---
@@ -744,8 +746,24 @@ class NotebookCore {
 
             const el = (e.target as any);
             if (!this.isReadOnly && el && !el.isLocked && el.isDeletable) {
+                if (this.options.questionMode && el.cellType === 'code') {
+                    const prev = el.previousElementSibling;
+                    const next = el.nextElementSibling;
+                    const prevIsCode = prev && prev.cellType === 'code' && !prev.isLocked && prev.isEditable !== false;
+                    const nextIsCode = next && next.cellType === 'code' && !next.isLocked && next.isEditable !== false;
+                    
+                    if (!prevIsCode && !nextIsCode) {
+                        alert("Cannot delete this code cell: at least one adjacent code cell is required in Question Mode.");
+                        return;
+                    }
+                    if (!confirm("Are you sure you want to delete this cell?")) return;
+                } else if (this.options.questionMode) {
+                    if (!confirm("Are you sure you want to delete this cell?")) return;
+                }
+
                 el.remove();
                 this.syncToServer();
+                this.updateQuestionModeVisibility();
             }
         });
 
@@ -755,6 +773,7 @@ class NotebookCore {
             const newCell = this.createCellElement({ type: 'code', content: '' });
             el.insertAdjacentElement('afterend', newCell);
             this.syncToServer();
+            this.updateQuestionModeVisibility();
             setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 50);
         });
 
@@ -770,6 +789,7 @@ class NotebookCore {
             this.container.insertBefore(newCell, oldEl);
             oldEl.remove();
             this.syncToServer();
+            this.updateQuestionModeVisibility();
             setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 50);
         });
     }
@@ -841,6 +861,7 @@ class NotebookCore {
         
         this.applyMaxWidth();
         this.setupDragAndDrop();
+        this.updateQuestionModeVisibility();
     }
 
     applyMaxWidth() {
@@ -911,6 +932,32 @@ class NotebookCore {
         }
     }
 
+    updateQuestionModeVisibility() {
+        if (!this.options.questionMode) return;
+        const children = Array.from(this.container.children) as any[];
+        const topInserter = document.getElementById('top-inserter');
+        if (topInserter) {
+            if (children.length > 0 && children[0].cellType === 'code' && !children[0].isLocked && children[0].isEditable !== false) {
+                topInserter.style.display = 'flex';
+            } else {
+                topInserter.style.display = 'none';
+            }
+        }
+        for (let i = 0; i < children.length; i++) {
+            const cell = children[i];
+            if (!cell.botInserter) continue;
+            const isCode = cell.cellType === 'code' && !cell.isLocked && cell.isEditable !== false;
+            const next = children[i+1];
+            const nextIsCode = next && next.cellType === 'code' && !next.isLocked && next.isEditable !== false;
+            
+            if (isCode || nextIsCode) {
+                cell.botInserter.style.display = 'flex';
+            } else {
+                cell.botInserter.style.display = 'none';
+            }
+        }
+    }
+
     setupDragAndDrop() {
         // --- UPDATED: Prevent SortableJS from running if disableMove is active ---
         if (this.isReadOnly || this.options.disableMove || this.sortable || typeof Sortable === 'undefined') return;
@@ -919,10 +966,25 @@ class NotebookCore {
             handle: '.drag-handle',
             animation: 150,
             filter: '[is-locked]',
+            onMove: (evt: any) => {
+                if (this.options.questionMode) {
+                    const dragged = evt.dragged;
+                    const related = evt.related;
+                    if (!dragged || !related) return false;
+                    
+                    const draggedIsCode = dragged.cellType === 'code' && !dragged.isLocked && dragged.isEditable !== false;
+                    const relatedIsCode = related.cellType === 'code' && !related.isLocked && related.isEditable !== false;
+                    
+                    if (draggedIsCode && relatedIsCode) return true;
+                    return false;
+                }
+                return true;
+            },
             onEnd: () => {
                 const cells = Array.from(this.container.children);
                 cells.forEach(cell => { if ((cell as any).refresh) (cell as any).refresh(); });
                 this.syncToServer();
+                this.updateQuestionModeVisibility();
             },
         });
     }

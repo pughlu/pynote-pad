@@ -172,7 +172,7 @@ export class EditorPanel implements IDEPanel {
         const viewMode = this.store.viewMode;
         const targetFile = this.currentRenderedFile || this.store.activeFileName;
 
-        if (viewMode === 'visual' && (window as any).notebookCore) {
+        if ((viewMode === 'visual' || viewMode === 'preview') && (window as any).notebookCore) {
             const flat = (window as any).notebookCore.serializeToFlat();
             this.store.updateContent(flat, targetFile);
         } else if (viewMode === 'flatfile') {
@@ -222,7 +222,7 @@ export class EditorPanel implements IDEPanel {
         this.visualWrapperEl.style.maxWidth = widthStyle;
         this.rawWrapperEl.style.maxWidth = widthStyle;
 
-        if (viewMode === 'visual') {
+        if (viewMode === 'visual' || viewMode === 'preview') {
             this.rawWrapperEl.classList.add('hidden');
             this.rawWrapperEl.classList.remove('flex');
             this.visualWrapperEl.classList.remove('hidden');
@@ -248,9 +248,20 @@ export class EditorPanel implements IDEPanel {
             }
 
             if (typeof (window as any).NotebookCore === 'function') {
-                const options = { ...this.store.options };
-                options.widgetId = activeFile;
-                (window as any).notebookCore = new (window as any).NotebookCore('pynote-mount-point', options);
+                const coreOptions = { ...this.store.options };
+                if (viewMode === 'visual') {
+                    // Disable restrictions in visual editor so author can edit freely
+                    coreOptions.questionMode = false;
+                    coreOptions.isReadOnly = false;
+                    coreOptions.disableInsertAll = false;
+                    coreOptions.disableDelete = false;
+                    coreOptions.disableMove = false;
+                    coreOptions.lockAllMarkdown = false;
+                    coreOptions.disableTypeChange = false;
+                }
+                
+                coreOptions.widgetId = activeFile;
+                (window as any).notebookCore = new (window as any).NotebookCore('pynote-mount-point', coreOptions);
                 const parsedCells = (window as any).notebookCore.deserializeFromFlat(content || '');
                 (window as any).notebookCore.loadData(parsedCells);
 
