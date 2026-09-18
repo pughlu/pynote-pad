@@ -60,6 +60,23 @@ export class NavbarPanel implements IDEPanel {
                 </div>
             </div>
 
+            <!-- Edit Menu -->
+            <div class="relative">
+                <button id="menu-btn-edit" class="menu-btn px-3 py-1 hover:bg-slate-700 hover:text-white rounded cursor-pointer outline-none transition-colors">Edit</button>
+                <div id="dropdown-edit" class="dropdown-menu absolute left-0 mt-1 w-64 bg-white text-slate-800 border border-slate-200 shadow-xl rounded-md hidden py-1 z-50">
+                    <a href="#" id="menu-edit-split" class="block px-4 py-1.5 hover:bg-blue-500 hover:text-white">Split cell at cursor</a>
+                    <a href="#" id="menu-edit-merge" class="block px-4 py-1.5 hover:bg-blue-500 hover:text-white">Merge cell with cell below</a>
+                    <hr class="border-slate-200 my-1">
+                    <a href="#" id="menu-edit-duplicate" class="block px-4 py-1.5 hover:bg-blue-500 hover:text-white">Duplicate Cell</a>
+                    <a href="#" id="menu-edit-copy" class="block px-4 py-1.5 hover:bg-blue-500 hover:text-white">Copy Cell</a>
+                    <a href="#" id="menu-edit-paste" class="block px-4 py-1.5 hover:bg-blue-500 hover:text-white">Paste Cell</a>
+                    <a href="#" id="menu-edit-delete" class="block px-4 py-1.5 hover:bg-red-500 hover:text-white text-red-600">Delete Cell</a>
+                    <hr class="border-slate-200 my-1">
+                    <a href="#" id="menu-edit-move-new" class="block px-4 py-1.5 hover:bg-fuchsia-500 hover:text-white">Move Cell to New File</a>
+                    <a href="#" id="menu-edit-move-all-new" class="block px-4 py-1.5 hover:bg-fuchsia-500 hover:text-white">Move All Cells Below to New File</a>
+                </div>
+            </div>
+
             <!-- View Menu -->
             <div class="relative">
                 <button id="menu-btn-view" class="menu-btn px-3 py-1 hover:bg-slate-700 hover:text-white rounded cursor-pointer outline-none transition-colors">View</button>
@@ -89,6 +106,8 @@ export class NavbarPanel implements IDEPanel {
     private bindMenus(): void {
         const fileBtn = this.container.querySelector('#menu-btn-file') as HTMLElement;
         const fileDropdown = this.container.querySelector('#dropdown-file') as HTMLElement;
+        const editBtn = this.container.querySelector('#menu-btn-edit') as HTMLElement;
+        const editDropdown = this.container.querySelector('#dropdown-edit') as HTMLElement;
         const viewBtn = this.container.querySelector('#menu-btn-view') as HTMLElement;
         const viewDropdown = this.container.querySelector('#dropdown-view') as HTMLElement;
         const settingsBtn = this.container.querySelector('#menu-btn-settings') as HTMLElement;
@@ -96,9 +115,11 @@ export class NavbarPanel implements IDEPanel {
 
         const closeAll = () => {
             fileDropdown.classList.add('hidden');
+            editDropdown.classList.add('hidden');
             viewDropdown.classList.add('hidden');
             settingsDropdown.classList.add('hidden');
             fileBtn.classList.remove('bg-slate-700', 'text-white');
+            editBtn.classList.remove('bg-slate-700', 'text-white');
             viewBtn.classList.remove('bg-slate-700', 'text-white');
             settingsBtn.classList.remove('bg-slate-700', 'text-white');
         };
@@ -114,6 +135,7 @@ export class NavbarPanel implements IDEPanel {
         };
 
         fileBtn.onclick = (e) => toggleMenu(fileBtn, fileDropdown, e);
+        editBtn.onclick = (e) => toggleMenu(editBtn, editDropdown, e);
         viewBtn.onclick = (e) => toggleMenu(viewBtn, viewDropdown, e);
         settingsBtn.onclick = (e) => toggleMenu(settingsBtn, settingsDropdown, e);
 
@@ -126,6 +148,88 @@ export class NavbarPanel implements IDEPanel {
     }
 
     private bindActions(): void {
+        // Edit Actions
+        this.container.querySelector('#menu-edit-split')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            if ((window as any).notebookCore) (window as any).notebookCore.splitCellAtCursor();
+        });
+        this.container.querySelector('#menu-edit-merge')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            if ((window as any).notebookCore) (window as any).notebookCore.mergeWithCellBelow();
+        });
+        this.container.querySelector('#menu-edit-duplicate')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            if ((window as any).notebookCore) (window as any).notebookCore.duplicateCell();
+        });
+        this.container.querySelector('#menu-edit-delete')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            if ((window as any).notebookCore) (window as any).notebookCore.deleteSelectedCell();
+        });
+        this.container.querySelector('#menu-edit-copy')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            if ((window as any).notebookCore) (window as any).notebookCore.copySelectedCell();
+        });
+        this.container.querySelector('#menu-edit-paste')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            if ((window as any).notebookCore) (window as any).notebookCore.pasteCell();
+        });
+        this.container.querySelector('#menu-edit-move-new')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            const core = (window as any).notebookCore;
+            if (!core) return;
+            const selected = core.getSelectedCell();
+            if (!selected || selected.el.isLocked || selected.el.isDeletable === false) return;
+            
+            const data = selected.el.toJSON();
+            if (selected.el.tagName.toLowerCase() === 'notebook-code-cell' && selected.el.editorView) {
+                data.content = selected.el.editorView.state.doc.toString();
+            }
+            
+            core.deleteSelectedCell();
+            
+            const newName = 'untitled (' + Math.floor(Math.random() * 1000) + ')';
+            const flatContent = (window as any).NotebookFormatConverter.serializeToFlat({ cells: [data], globalConfig: this.store.options });
+            this.store.updateContent(flatContent, newName);
+            this.store.setActiveFile(newName);
+        });
+        this.container.querySelector('#menu-edit-move-all-new')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            const core = (window as any).notebookCore;
+            if (!core) return;
+            const selected = core.getSelectedCell();
+            if (!selected) return;
+
+            const cells = core.toJSON();
+            const cellsToMove = [];
+            for (let i = selected.index; i < cells.length; i++) {
+                const child = core.container.children[i];
+                if (child.isLocked || child.isDeletable === false) continue; // Skip locked cells
+                
+                const data = child.toJSON();
+                if (child.tagName.toLowerCase() === 'notebook-code-cell' && child.editorView) {
+                    data.content = child.editorView.state.doc.toString();
+                }
+                cellsToMove.push(data);
+            }
+            
+            if (cellsToMove.length === 0) return;
+
+            // Delete moved cells from current core (in reverse order to avoid index shifting)
+            for (let i = cells.length - 1; i >= selected.index; i--) {
+                const child = core.container.children[i];
+                if (!child.isLocked && child.isDeletable !== false) {
+                    child.remove();
+                }
+            }
+            core.selectedIndices = [];
+            core.syncToServer();
+
+            const newName = 'untitled (' + Math.floor(Math.random() * 1000) + ')';
+            const flatContent = (window as any).NotebookFormatConverter.serializeToFlat({ cells: cellsToMove, globalConfig: this.store.options });
+            this.store.updateContent(flatContent, newName);
+            this.store.setActiveFile(newName);
+        });
+
         // Open
         this.container.querySelector('#menu-file-load')?.addEventListener('click', (e) => {
             e.preventDefault();

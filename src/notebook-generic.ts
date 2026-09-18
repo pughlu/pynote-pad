@@ -927,6 +927,173 @@ class NotebookCore {
         });
     }
 
+    getSelectedCell(): { index: number, el: any } | null {
+        if (!this.selectedIndices || this.selectedIndices.length === 0) return null;
+        const index = this.selectedIndices[0];
+        const children = this.container.children;
+        if (index >= 0 && index < children.length) {
+            return { index, el: children[index] };
+        }
+        return null;
+    }
+
+    splitCellAtCursor() {
+        if (this.isReadOnly || this.options.disableInsertAll) return;
+        const selected = this.getSelectedCell();
+        if (!selected) return;
+
+        const { index, el } = selected;
+        if (el.isLocked || el.isEditable === false) return;
+
+        let content = '';
+        let cursorStart = -1;
+
+        if (el.tagName.toLowerCase() === 'notebook-code-cell' && el.editorView) {
+            content = el.editorView.state.doc.toString();
+            cursorStart = el.editorView.state.selection.main.head;
+        } else if (el.tagName.toLowerCase() === 'notebook-markdown-cell' && el.textarea) {
+            content = el.textarea.value;
+            cursorStart = el.textarea.selectionStart;
+        } else {
+            content = el.content || '';
+            cursorStart = Math.floor(content.length / 2); // fallback: split in half
+        }
+
+        if (cursorStart >= 0 && cursorStart < content.length) {
+            const firstHalf = content.substring(0, cursorStart);
+            const secondHalf = content.substring(cursorStart);
+
+            // Update current cell
+            if (el.tagName.toLowerCase() === 'notebook-code-cell' && el.editorView) {
+                el.editorView.dispatch({ changes: { from: 0, to: content.length, insert: firstHalf } });
+            } else {
+                el.content = firstHalf;
+                if (el.textarea) el.textarea.value = firstHalf;
+                if (el.markdownContent && typeof (window as any).marked !== 'undefined') {
+                    el.markdownContent.innerHTML = (window as any).marked.parse(firstHalf);
+                }
+            }
+
+            // Create new cell
+            const newCell = this.createCellElement({ type: el.cellType, content: secondHalf, isEditing: el.cellType === 'markdown' });
+            this.container.insertBefore(newCell, el.nextSibling);
+            this.syncToServer();
+            setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 100);
+        }
+    }
+
+    mergeWithCellBelow() {
+        if (this.isReadOnly || this.options.disableDelete) return;
+        const selected = this.getSelectedCell();
+        if (!selected) return;
+
+        const { index, el } = selected;
+        if (el.isLocked || el.isEditable === false) return;
+
+        const nextEl = el.nextSibling as any;
+        if (!nextEl || nextEl.isLocked || nextEl.isDeletable === false) return;
+
+        // Get current and next contents
+        let currentContent = '';
+        if (el.tagName.toLowerCase() === 'notebook-code-cell' && el.editorView) {
+            currentContent = el.editorView.state.doc.toString();
+        } else {
+            currentContent = el.content || '';
+        }
+
+        let nextContent = '';
+        if (nextEl.tagName.toLowerCase() === 'notebook-code-cell' && nextEl.editorView) {
+            nextContent = nextEl.editorView.state.doc.toString();
+        } else {
+            nextContent = nextEl.content || '';
+        }
+
+        const mergedContent = currentContent + '\\n' + nextContent;
+
+        // Update current cell
+        if (el.tagName.toLowerCase() === 'notebook-code-cell' && el.editorView) {
+            el.editorView.dispatch({ changes: { from: 0, to: currentContent.length, insert: mergedContent } });
+        } else {
+            el.content = mergedContent;
+            if (el.textarea) el.textarea.value = mergedContent;
+            if (el.markdownContent && typeof (window as any).marked !== 'undefined') {
+                el.markdownContent.innerHTML = (window as any).marked.parse(mergedContent);
+            }
+        }
+
+        nextEl.remove();
+        this.syncToServer();
+    }
+
+    duplicateCell() {
+        if (this.isReadOnly || this.options.disableInsertAll) return;
+        const selected = this.getSelectedCell();
+        if (!selected) return;
+
+        const { el } = selected;
+        const data = el.toJSON();
+        data.id = Math.random().toString(36).substring(2, 9); // new ID
+        
+        // Ensure content is fresh
+        if (el.tagName.toLowerCase() === 'notebook-code-cell' && el.editorView) {
+            data.content = el.editorView.state.doc.toString();
+        }
+
+        const newCell = this.createCellElement(data);
+        this.container.insertBefore(newCell, el.nextSibling);
+        this.syncToServer();
+        setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 100);
+    }
+
+    deleteSelectedCell() {
+        if (this.options.disableDelete) return;
+        const selected = this.getSelectedCell();
+        if (!selected) return;
+
+        const { el } = selected;
+        if (!this.isReadOnly && !el.isLocked && el.isDeletable !== false) {
+            el.remove();
+            this.selectedIndices = [];
+            this.syncToServer();
+        }
+    }
+
+    copySelectedCell() {
+        const selected = this.getSelectedCell();
+        if (!selected) return;
+        const data = selected.el.toJSON();
+        
+        // Ensure content is fresh
+        if (selected.el.tagName.toLowerCase() === 'notebook-code-cell' && selected.el.editorView) {
+            data.content = selected.el.editorView.state.doc.toString();
+        }
+        
+        window.sessionStorage.setItem('pynote_copied_cell', JSON.stringify(data));
+    }
+
+    pasteCell() {
+        if (this.isReadOnly || this.options.disableInsertAll) return;
+        const copiedData = window.sessionStorage.getItem('pynote_copied_cell');
+        if (!copiedData) return;
+
+        try {
+            const data = JSON.parse(copiedData);
+            data.id = Math.random().toString(36).substring(2, 9); // Assign new ID
+            const newCell = this.createCellElement(data);
+
+            const selected = this.getSelectedCell();
+            if (selected) {
+                this.container.insertBefore(newCell, selected.el.nextSibling);
+            } else {
+                this.container.appendChild(newCell);
+            }
+            this.syncToServer();
+            setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 100);
+        } catch (e) {
+            console.error("Paste Error:", e);
+        }
+    }
+
     serializeToFlat() {
         const cells: any = this.toJSON();
         // Export the active configuration so the resulting flatfile is self-contained

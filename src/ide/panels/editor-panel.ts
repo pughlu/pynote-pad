@@ -248,6 +248,7 @@ export class EditorPanel implements IDEPanel {
             }
 
             if (typeof (window as any).NotebookCore === 'function') {
+                const options = { ...this.store.options };
                 options.widgetId = activeFile;
                 (window as any).notebookCore = new (window as any).NotebookCore('pynote-mount-point', options);
                 const parsedCells = (window as any).notebookCore.deserializeFromFlat(content || '');
