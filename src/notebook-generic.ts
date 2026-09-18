@@ -29,6 +29,8 @@ const USER_MESSAGES = {
 
 const PYODIDE_CDN_URL = "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/";
 
+let globalPyodideWorker: Worker | null = null;
+
 class PyodideWorkerKernel {
     isReady!: boolean;
     worker!: Worker | null;
@@ -60,18 +62,16 @@ class PyodideWorkerKernel {
         statusCallback('loading');
 
         try {
-            // 1. Kill any existing worker if we are re-initializing (tab switching)
-            if (this.worker) {
-                this.worker.terminate();
+            // 1. Re-use or Spawn the global background worker
+            if (!globalPyodideWorker) {
+                globalPyodideWorker = new Worker('pyodide-worker.js', { type: 'module' });
             }
+            this.worker = globalPyodideWorker;
 
-            // 2. Spawn the background worker as an ES Module
-            this.worker = new Worker('pyodide-worker.js', { type: 'module' });
-
-            // 3. Route all incoming worker messages to your existing robust handler
+            // 2. Route all incoming worker messages to the CURRENT instance
             this.worker.onmessage = (e) => this.handleMessage(e.data);
 
-            // 4. THE MISSING PIECE: Tell the worker to start loading Pyodide!
+            // 3. Send INIT. The worker latch ensures Pyodide is only loaded once.
             this.worker.postMessage({
                 action: 'INIT',
                 id: 'init',
@@ -174,8 +174,11 @@ class PyodideWorkerKernel {
     }
 
     destroy() {
-        if (this.worker && typeof this.worker.terminate === 'function') this.worker.terminate();
+        // We do NOT terminate the global worker. Just disconnect to let it survive tab switches.
         this.isReady = false;
+        if (this.worker) {
+            // Optional: we don't nullify onmessage because the new kernel instantly overwrites it
+        }
     }
 }
 

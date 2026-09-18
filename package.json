@@ -20,6 +20,10 @@
     "lms-widget-manager": "github:pughlu/lms-widget-manager"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.2.2",
     "vite": "^8.3.0"
   },
