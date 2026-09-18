@@ -190,7 +190,7 @@ export class NavbarPanel implements IDEPanel {
             
             core.deleteSelectedCell();
             
-            const newName = 'untitled (' + Math.floor(Math.random() * 1000) + ')';
+            const newName = this.generateUniqueFilename(this.store.activeFileName);
             const flatContent = (window as any).NotebookFormatConverter.serializeToFlat({ cells: [data], globalConfig: this.store.options });
             this.store.updateContent(flatContent, newName);
             this.store.setActiveFile(newName);
@@ -227,7 +227,7 @@ export class NavbarPanel implements IDEPanel {
             core.selectedIndices = [];
             core.syncToServer();
 
-            const newName = 'untitled (' + Math.floor(Math.random() * 1000) + ')';
+            const newName = this.generateUniqueFilename(this.store.activeFileName);
             const flatContent = (window as any).NotebookFormatConverter.serializeToFlat({ cells: cellsToMove, globalConfig: this.store.options });
             this.store.updateContent(flatContent, newName);
             this.store.setActiveFile(newName);
@@ -338,6 +338,19 @@ export class NavbarPanel implements IDEPanel {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(a.href);
+    }
+
+    private generateUniqueFilename(baseName: string): string {
+        const files = this.store.files;
+        let match = baseName.match(/^(.*?)(?:\s*\((\d+)\))?$/);
+        let base = match && match[1] ? match[1].trim() : baseName;
+        let counter = match && match[2] ? parseInt(match[2], 10) + 1 : 1;
+        let newName = `${base} (${counter})`;
+        while (files[newName]) {
+            counter++;
+            newName = `${base} (${counter})`;
+        }
+        return newName;
     }
 
     private exportMoodleXML(): void {
