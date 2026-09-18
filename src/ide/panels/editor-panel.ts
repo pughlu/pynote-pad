@@ -1,0 +1,451 @@
+// src/ide/panels/editor-panel.ts
+// Pragmatic Programmer: Encapsulated Workspace & Editor Panel with Bulletproof Scroll Shell
+
+import { EventBus } from '../event-bus';
+import { IDEStore } from '../store';
+import { CellConfig, IDEPanel, ViewMode } from '../types';
+
+export class EditorPanel implements IDEPanel {
+    private container!: HTMLElement;
+    private tabBarEl!: HTMLElement;
+    private scrollViewportEl!: HTMLElement;
+    private visualWrapperEl!: HTMLElement;
+    private rawWrapperEl!: HTMLElement;
+    private rawTextareaEl!: HTMLTextAreaElement;
+    private rawTitleEl!: HTMLElement;
+    private mainHeaderEl!: HTMLElement;
+    private kernelIndicatorEl!: HTMLElement;
+    private kernelSelectorEl!: HTMLSelectElement;
+
+    private bus: EventBus;
+    private store: IDEStore;
+    private unsubs: Array<() => void> = [];
+    private currentRenderedFile: string | null = null;
+
+    constructor(bus: EventBus, store: IDEStore) {
+        this.bus = bus;
+        this.store = store;
+    }
+
+    mount(container: HTMLElement): void {
+        this.container = container;
+        this.renderShell();
+        this.bindEvents();
+        this.renderWorkspace();
+    }
+
+    private renderShell(): void {
+        this.container.innerHTML = `
+            <!-- Browser-Style Tab Bar (Fixed height) -->
+            <div id="tab-bar" class="bg-slate-200 flex items-end px-2 pt-2 gap-1 shrink-0 overflow-x-auto border-b border-slate-300 shadow-inner select-none"></div>
+
+            <!-- Absolute Inset Scroll Shell (Rigid container preventing flex blowout) -->
+            <div class="panel-scroll-shell">
+                <div id="scroll-viewport" class="panel-scroll-viewport p-4 md:p-6 flex flex-col items-center">
+                    
+                    <!-- Visual Editor Wrapper (Grows to fit cells) -->
+                    <div id="visual-editor-wrapper" class="w-full bg-white border border-slate-200 rounded-md shadow-sm flex flex-col shrink-0 min-h-[500px] mb-12 transition-all duration-300" style="max-width: 80ch;">
+                        <header id="main-header" class="hidden bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shrink-0 rounded-t-md transition-all">
+                            <div class="flex items-center gap-3">
+                                <div id="kernel-status-wrapper" class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md tracking-wider border border-slate-200 shadow-inner">
+                                    <div id="kernel-status-indicator" class="flex items-center gap-1.5 uppercase min-w-[70px]">Starting...</div>
+                                    <div class="w-px h-3 bg-slate-300 mx-0.5"></div>
+                                    <select id="kernel-selector" class="bg-transparent border-none outline-none cursor-pointer font-bold text-slate-600 hover:text-slate-900 uppercase text-[10px] text-center appearance-none px-1">
+                                        <option value="skulpt">Skulpt</option>
+                                        <option value="pyodide">Pyodide</option>
+                                    </select>
+                                    <div class="w-px h-3 bg-slate-300 mx-0.5"></div>
+                                    <button id="btn-restart-kernel" class="text-slate-500 hover:text-slate-800 transition-colors p-0.5 rounded hover:bg-slate-200" title="Restart Kernel">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button id="btn-run-all" class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors shadow-sm">
+                                    Run All
+                                </button>
+                            </div>
+                        </header>
+                        <!-- PyNote notebook mounts here -->
+                        <div id="pynote-mount-point" class="p-4 relative flex flex-col w-full box-border"></div>
+                    </div>
+
+                    <!-- Raw Text Editor Wrapper -->
+                    <div id="raw-editor-wrapper" class="w-full h-full bg-white border border-slate-200 rounded-md shadow-sm flex-col hidden flex-1 mb-12 transition-all duration-300" style="max-width: 80ch;">
+                        <div class="bg-slate-800 text-slate-200 px-4 py-2 text-xs font-mono rounded-t-md flex justify-between shrink-0">
+                            <span id="raw-editor-title">raw mode</span>
+                            <span class="text-slate-400">Edits are applied when switching views or tabs.</span>
+                        </div>
+                        <textarea id="raw-editor-textarea" spellcheck="false" class="flex-1 w-full p-4 font-mono text-sm outline-none bg-slate-50 text-slate-800 rounded-b-md focus:ring-2 focus:ring-inset focus:ring-blue-500 resize-none min-h-[400px]"></textarea>
+                    </div>
+
+                </div>
+            </div>
+        `;
+
+        this.tabBarEl = this.container.querySelector('#tab-bar') as HTMLElement;
+        this.scrollViewportEl = this.container.querySelector('#scroll-viewport') as HTMLElement;
+        this.visualWrapperEl = this.container.querySelector('#visual-editor-wrapper') as HTMLElement;
+        this.rawWrapperEl = this.container.querySelector('#raw-editor-wrapper') as HTMLElement;
+        this.rawTextareaEl = this.container.querySelector('#raw-editor-textarea') as HTMLTextAreaElement;
+        this.rawTitleEl = this.container.querySelector('#raw-editor-title') as HTMLElement;
+        this.mainHeaderEl = this.container.querySelector('#main-header') as HTMLElement;
+        this.kernelIndicatorEl = this.container.querySelector('#kernel-status-indicator') as HTMLElement;
+        this.kernelSelectorEl = this.container.querySelector('#kernel-selector') as HTMLSelectElement;
+
+        // Toolbar actions
+        this.container.querySelector('#btn-run-all')?.addEventListener('click', () => {
+            if (window.notebookCore?.runAll) window.notebookCore.runAll();
+        });
+        this.container.querySelector('#btn-restart-kernel')?.addEventListener('click', () => {
+            if (window.notebookCore?.restartKernel) window.notebookCore.restartKernel();
+        });
+        this.kernelSelectorEl?.addEventListener('change', (e) => {
+            const val = (e.target as HTMLSelectElement).value;
+            this.store.setOption('kernelType', val);
+        });
+
+        // Expose triggerHostSync for live notebook keystrokes
+        window.triggerHostSync = (flatfilePayload: string) => {
+            if (this.store.viewMode === 'visual') {
+                this.store.updateContent(flatfilePayload);
+            }
+        };
+    }
+
+    private bindEvents(): void {
+        this.unsubs.push(
+            this.bus.on('file:selected', () => {
+                this.syncCurrentState();
+                this.renderWorkspace();
+            }),
+            this.bus.on('files:changed', () => {
+                this.renderTabs();
+            }),
+            this.bus.on('view:changed', () => {
+                this.syncCurrentState();
+                this.renderWorkspace();
+            }),
+            this.bus.on('config:changed', (data) => {
+                if (data.options.kernelType && this.kernelSelectorEl) {
+                    this.kernelSelectorEl.value = data.options.kernelType;
+                }
+                const maxWidth = data.options.maxWidthChars;
+                const widthStyle = maxWidth && maxWidth !== -1 && maxWidth !== '-1' ? `${maxWidth}ch` : '100%';
+                if (this.visualWrapperEl) this.visualWrapperEl.style.maxWidth = widthStyle;
+                if (this.rawWrapperEl) this.rawWrapperEl.style.maxWidth = widthStyle;
+
+                if (this.mainHeaderEl) {
+                    if (data.options.showTopBar !== false) this.mainHeaderEl.classList.remove('hidden');
+                    else this.mainHeaderEl.classList.add('hidden');
+                }
+            }),
+            this.bus.on('cell:update-config', ({ indices, config }) => {
+                this.applyCellConfig(indices, config);
+            })
+        );
+
+        // Listen to custom event emitted by notebookCore for multi-select
+        window.addEventListener('cell-selection-changed', (e: any) => {
+            const indices = e.detail?.indices || [];
+            this.store.setSelectedCellIndices(indices);
+        });
+
+        // Forward kernel status
+        window.addEventListener('kernel-status-changed', (e: any) => {
+            const isReady = e.detail?.isReady;
+            if (this.kernelIndicatorEl) {
+                if (isReady) {
+                    this.kernelIndicatorEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-green-500 inline-block"></span> Ready`;
+                } else {
+                    this.kernelIndicatorEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-amber-500 inline-block"></span> Starting...`;
+                }
+            }
+            this.bus.emit('kernel:status-changed', {
+                isReady: !!isReady,
+                text: isReady ? 'Ready' : 'Starting...'
+            });
+        });
+    }
+
+    public syncCurrentState(): boolean {
+        const viewMode = this.store.viewMode;
+        const targetFile = this.currentRenderedFile || this.store.activeFileName;
+
+        if (viewMode === 'visual' && (window as any).notebookCore) {
+            const flat = (window as any).notebookCore.serializeToFlat();
+            this.store.updateContent(flat, targetFile);
+        } else if (viewMode === 'flatfile') {
+            const flat = this.rawTextareaEl.value;
+            this.store.updateContent(flat, targetFile);
+        } else if (viewMode === 'jupyter') {
+            try {
+                const ipynb = JSON.parse(this.rawTextareaEl.value);
+                const pynoteCells = ipynb.cells.map((c: any) => {
+                    const type = c.cell_type === 'markdown' ? 'markdown' : 'code';
+                    const str = Array.isArray(c.source) ? c.source.join('') : (c.source || '');
+                    const metaObj = { ...c.metadata };
+                    delete metaObj.pynote_locked;
+                    if (metaObj.editable === true) delete metaObj.editable;
+                    if (metaObj.deletable === true) delete metaObj.deletable;
+                    if (Array.isArray(metaObj.tags)) {
+                        if (metaObj.tags.includes('locked')) {
+                            metaObj.locked = true;
+                            metaObj.tags = metaObj.tags.filter((t: string) => t !== 'locked');
+                        }
+                        if (metaObj.tags.length === 0) delete metaObj.tags;
+                    }
+                    const metaStr = Object.keys(metaObj).length > 0 ? ` ${JSON.stringify(metaObj)}` : '';
+                    if (type === 'code') return `# %% [code]${metaStr}\n${str.replace(/\n+$/, '')}`;
+                    return `# %% [markdown]${metaStr}\n"""\n${str.replace(/\n+$/, '')}\n"""`;
+                });
+                this.store.updateContent(pynoteCells.join('\n\n'), targetFile);
+            } catch (e) {
+                alert("Invalid Jupyter JSON! Cannot apply changes. Please fix formatting.");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private renderWorkspace(): void {
+        const viewMode = this.store.viewMode;
+        const activeFile = this.store.activeFileName;
+        const content = this.store.activeContent;
+        const options = this.store.options;
+
+        this.renderTabs();
+
+        // Adjust max width
+        const maxWidth = options.maxWidthChars;
+        const widthStyle = maxWidth && maxWidth !== -1 && maxWidth !== '-1' ? `${maxWidth}ch` : '100%';
+        this.visualWrapperEl.style.maxWidth = widthStyle;
+        this.rawWrapperEl.style.maxWidth = widthStyle;
+
+        if (viewMode === 'visual') {
+            this.rawWrapperEl.classList.add('hidden');
+            this.rawWrapperEl.classList.remove('flex');
+            this.visualWrapperEl.classList.remove('hidden');
+            this.visualWrapperEl.classList.add('flex');
+
+            if (options.showTopBar !== false) this.mainHeaderEl.classList.remove('hidden');
+            else this.mainHeaderEl.classList.add('hidden');
+
+            if (this.kernelSelectorEl) {
+                this.kernelSelectorEl.value = options.kernelType || 'skulpt';
+            }
+
+            // Cleanup previous kernel worker to prevent memory leaks
+            if (window.notebookCore?.kernel?.destroy) {
+                window.notebookCore.kernel.destroy();
+            }
+
+            // Clean up mount point
+            const oldMount = document.getElementById('pynote-mount-point');
+            if (oldMount && oldMount.parentNode) {
+                const newMount = oldMount.cloneNode(false) as HTMLElement;
+                oldMount.parentNode.replaceChild(newMount, oldMount);
+            }
+
+            if (typeof (window as any).NotebookCore === 'function') {
+                options.widgetId = activeFile;
+                (window as any).notebookCore = new (window as any).NotebookCore('pynote-mount-point', options);
+                const parsedCells = (window as any).notebookCore.deserializeFromFlat(content || '');
+                (window as any).notebookCore.loadData(parsedCells);
+
+                // Sync loaded file's global config back into store if present
+                if (parsedCells.globalConfig) {
+                    this.store.setOptions(parsedCells.globalConfig);
+                }
+            }
+            this.currentRenderedFile = activeFile;
+        } else {
+            this.visualWrapperEl.classList.add('hidden');
+            this.visualWrapperEl.classList.remove('flex');
+            this.rawWrapperEl.classList.remove('hidden');
+            this.rawWrapperEl.classList.add('flex');
+
+            if (viewMode === 'flatfile') {
+                this.rawTitleEl.innerText = `${activeFile} (Flatfile Raw Mode)`;
+                this.rawTextareaEl.value = content || '';
+            } else if (viewMode === 'jupyter') {
+                this.rawTitleEl.innerText = `${activeFile} (Jupyter JSON Raw Mode)`;
+                const converter = window.NotebookFormatConverter;
+                const parsedCells = converter ? converter.deserializeFromFlat(content || '') : [];
+                const cells = parsedCells.map((c: any) => ({
+                    cell_type: c.type === 'code' ? 'code' : 'markdown',
+                    metadata: {
+                        ...c.metadata,
+                        ...(c.isEditable === false || c.isLocked ? { editable: false } : {}),
+                        ...(c.isDeletable === false || c.isLocked ? { deletable: false } : {}),
+                        ...(c.isLocked ? { tags: ['locked'] } : {})
+                    },
+                    source: c.content ? c.content.split('\n').map((l: string, i: number, arr: string[]) => l + (i === arr.length - 1 ? '' : '\n')) : [],
+                    ...(c.type === 'code' ? { execution_count: null, outputs: [] } : {})
+                }));
+                this.rawTextareaEl.value = JSON.stringify({
+                    cells,
+                    metadata: { language_info: { name: "python" } },
+                    nbformat: 4,
+                    nbformat_minor: 5
+                }, null, 2);
+            }
+            this.currentRenderedFile = activeFile;
+        }
+    }
+
+    private renderTabs(): void {
+        if (!this.tabBarEl) return;
+        this.tabBarEl.innerHTML = '';
+
+        const files = this.store.files;
+        const activeName = this.store.activeFileName;
+
+        Object.keys(files).forEach(fileName => {
+            const isActive = fileName === activeName;
+            const tab = document.createElement('div');
+            tab.className = `flex items-center px-3 py-1.5 text-sm cursor-pointer select-none border-t border-x rounded-t-lg transition-colors ${
+                isActive
+                    ? 'bg-white border-slate-300 text-blue-600 font-medium translate-y-px z-10'
+                    : 'bg-slate-100 border-transparent text-slate-500 hover:bg-slate-50 border-b border-b-slate-300'
+            }`;
+
+            tab.innerHTML = `
+                <svg class="w-4 h-4 mr-1.5 shrink-0 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <span class="truncate max-w-[120px] cursor-text" title="Double click to rename">${fileName}</span>
+                <button class="ml-1.5 p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-red-500 shrink-0" title="Close File">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            `;
+
+            tab.onclick = () => {
+                if (fileName !== this.store.activeFileName) {
+                    this.syncCurrentState();
+                    this.store.setActiveFile(fileName);
+                }
+            };
+
+            const closeBtn = tab.querySelector('button');
+            if (closeBtn) {
+                closeBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    this.store.closeFile(fileName);
+                };
+            }
+
+            const span = tab.querySelector('span');
+            if (span) {
+                span.ondblclick = (e) => {
+                    e.stopPropagation();
+                    this.startInlineRename(span, fileName);
+                };
+            }
+
+            this.tabBarEl.appendChild(tab);
+        });
+    }
+
+    private startInlineRename(spanElement: HTMLElement, oldName: string): void {
+        if (spanElement.querySelector('input')) return;
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = oldName;
+        input.className = 'w-full bg-white border border-blue-400 outline-none px-1 rounded text-slate-800 focus:ring-2 focus:ring-blue-500 font-sans text-xs';
+        input.style.minWidth = '50px';
+        input.style.maxWidth = '120px';
+        input.style.height = '18px';
+
+        spanElement.innerHTML = '';
+        spanElement.appendChild(input);
+        input.focus();
+        input.select();
+
+        let isFinished = false;
+        const finishRename = (save: boolean) => {
+            if (isFinished) return;
+            isFinished = true;
+            if (save) {
+                const newName = input.value.trim();
+                if (newName && newName !== oldName) {
+                    const success = this.store.renameFile(oldName, newName);
+                    if (!success) {
+                        alert("A file with this name already exists!");
+                        spanElement.innerHTML = oldName;
+                    }
+                    return;
+                }
+            }
+            spanElement.innerHTML = oldName;
+        };
+
+        input.onblur = () => finishRename(true);
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                finishRename(true);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                finishRename(false);
+            }
+        };
+        input.onclick = (e) => e.stopPropagation();
+        input.ondblclick = (e) => e.stopPropagation();
+    }
+
+    private applyCellConfig(indices: number[] | readonly number[], config: CellConfig): void {
+        const mountPoint = document.getElementById('pynote-mount-point');
+        if (!mountPoint || !mountPoint.firstElementChild) return;
+
+        const domCells = Array.from(mountPoint.firstElementChild.children) as any[];
+
+        indices.forEach(idx => {
+            const cell = domCells[idx];
+            if (!cell) return;
+
+            if (config.isLocked !== undefined) {
+                if (config.isLocked) cell.setAttribute('is-locked', '');
+                else cell.removeAttribute('is-locked');
+                cell.isLocked = config.isLocked;
+            }
+
+            if (config.isEditable !== undefined) {
+                if (!config.isEditable) cell.setAttribute('is-editable', 'false');
+                else cell.removeAttribute('is-editable');
+                cell.isEditable = config.isEditable;
+            }
+
+            if (config.isDeletable !== undefined) {
+                if (!config.isDeletable) cell.setAttribute('is-deletable', 'false');
+                else cell.removeAttribute('is-deletable');
+                cell.isDeletable = config.isDeletable;
+            }
+
+            if (config.isMoveable !== undefined) {
+                if (!config.isMoveable) cell.setAttribute('is-moveable', 'false');
+                else cell.removeAttribute('is-moveable');
+                cell.isMoveable = config.isMoveable;
+            }
+
+            if (config.isHidden !== undefined) {
+                if (config.isHidden) cell.setAttribute('is-hidden', '');
+                else cell.removeAttribute('is-hidden');
+                cell.isHidden = config.isHidden;
+            }
+
+            if (config.metadata !== undefined) {
+                cell.metadata = config.metadata;
+            }
+        });
+
+        // Sync back to store
+        this.syncCurrentState();
+    }
+
+    destroy(): void {
+        this.unsubs.forEach(fn => fn());
+        this.unsubs = [];
+    }
+}
