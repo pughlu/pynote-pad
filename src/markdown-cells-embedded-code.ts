@@ -7,6 +7,7 @@ if (customElements.get('notebook-markdown-cell')) {
     const MarkdownCell = customElements.get('notebook-markdown-cell');
 
     MarkdownCell.prototype.renderMarkdown = function() {
+        if (!this.viewDiv) return;
         
         try {
             this.viewDiv.innerHTML = (typeof marked !== 'undefined') 

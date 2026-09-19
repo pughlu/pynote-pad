@@ -268,7 +268,41 @@ export class ConfigPanel implements IDEPanel {
         this.cellPanelEl.classList.remove('opacity-50', 'pointer-events-none');
         this.cellIndicatorEl.innerText = indices.length === 1 ? `Cell #${indices[0] + 1}` : `${indices.length} Cells`;
 
-        // Read attributes from the first selected cell via deserialized notebook
+        // 1. Prefer reading directly from the live DOM cell element in the visual editor
+        const mountPoint = document.getElementById('pynote-mount-point');
+        const domCells = (window as any).notebookCore?.container 
+            ? Array.from((window as any).notebookCore.container.children) as any[]
+            : (mountPoint ? Array.from(mountPoint.children) as any[] : []);
+
+        const liveCell = domCells && domCells[indices[0]];
+        if (liveCell && typeof liveCell.getAttribute === 'function') {
+            this.lockInput.checked = liveCell.hasAttribute('is-locked') || !!liveCell.isLocked;
+            this.editInput.checked = liveCell.getAttribute('is-editable') !== 'false';
+            this.deleteInput.checked = liveCell.getAttribute('is-deletable') !== 'false';
+            this.moveInput.checked = liveCell.getAttribute('is-moveable') !== 'false';
+            this.hideInput.checked = liveCell.hasAttribute('is-hidden') || !!liveCell.isHidden;
+
+            let cleanMeta: Record<string, any> = {};
+            if (liveCell.metadata && Object.keys(liveCell.metadata).length > 0) {
+                cleanMeta = { ...liveCell.metadata };
+            } else {
+                const metaAttr = liveCell.getAttribute('cell-metadata');
+                if (metaAttr) {
+                    try { cleanMeta = JSON.parse(metaAttr); } catch {}
+                }
+            }
+            delete cleanMeta.locked;
+            delete cleanMeta.editable;
+            delete cleanMeta.deletable;
+            delete cleanMeta.moveable;
+            delete cleanMeta.hidden;
+            delete cleanMeta.lang;
+
+            this.metaInput.value = Object.keys(cleanMeta).length > 0 ? JSON.stringify(cleanMeta, null, 2) : '';
+            return;
+        }
+
+        // 2. Fallback: Read attributes from the first selected cell via deserialized notebook
         const converter = window.NotebookFormatConverter;
         const cells = converter ? converter.deserializeFromFlat(this.store.activeContent) : [];
         const firstCell = cells[indices[0]];

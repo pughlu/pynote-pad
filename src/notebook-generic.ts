@@ -407,15 +407,18 @@ class BaseNotebookCell extends HTMLElement {
     botInserter?: HTMLDivElement;
     deleteBtn?: HTMLButtonElement;
 
+    metadata?: Record<string, any>;
+
     constructor() {
         super();
         this._initialized = false;
         this.actionBtnElement = null;
         this.resizeObserver = null;
+        this.metadata = {};
     }
 
     static get observedAttributes() {
-        return ['is-locked', 'is-editable', 'is-deletable', 'is-moveable', 'is-hidden', 'content'];
+        return ['is-locked', 'is-editable', 'is-deletable', 'is-moveable', 'is-hidden', 'cell-metadata', 'content'];
     }
 
     attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null) {
@@ -427,6 +430,9 @@ class BaseNotebookCell extends HTMLElement {
         if (name === 'is-moveable') this.isMoveable = newValue !== 'false';
         if (name === 'is-hidden') this.isHidden = newValue !== null;
         if (name === 'content') this.content = newValue || '';
+        if (name === 'cell-metadata') {
+            try { this.metadata = newValue ? JSON.parse(newValue) : {}; } catch {}
+        }
 
         if (this._initialized) {
             this.updateView();
@@ -450,6 +456,12 @@ class BaseNotebookCell extends HTMLElement {
         this.isEditable = this.getAttribute('is-editable') !== 'false';
         this.isDeletable = this.getAttribute('is-deletable') !== 'false';
         this.isMoveable = this.getAttribute('is-moveable') !== 'false';
+
+        const metaAttr = this.getAttribute('cell-metadata');
+        if (metaAttr) {
+            try { this.metadata = JSON.parse(metaAttr); } catch {}
+        }
+        if (!this.metadata) this.metadata = {};
 
         this.renderShell();
         this.mountContent(this.contentArea);
@@ -643,7 +655,8 @@ class BaseNotebookCell extends HTMLElement {
             isHidden: this.isHidden,
             isEditable: this.isEditable,
             isDeletable: this.isDeletable,
-            isMoveable: this.isMoveable
+            isMoveable: this.isMoveable,
+            metadata: this.metadata || {}
         };
     }
 }
@@ -977,6 +990,10 @@ class NotebookCore {
         if (data.isEditable === false) cell.setAttribute('is-editable', 'false');
         if (data.isDeletable === false) cell.setAttribute('is-deletable', 'false');
         if (data.isMoveable === false) cell.setAttribute('is-moveable', 'false');
+        if (data.metadata) {
+            cell.setAttribute('cell-metadata', JSON.stringify(data.metadata));
+            (cell as any).metadata = data.metadata;
+        }
         return cell;
     }
 

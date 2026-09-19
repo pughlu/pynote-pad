@@ -11,10 +11,18 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [tailwindcss()],
   build: {
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         ide: resolve(__dirname, 'ide.html')
+      },
+      output: {
+        manualChunks(id) {
+          if (id.includes('@codemirror') || id.includes('codemirror') || id.includes('@lezer')) {
+            return 'codemirror';
+          }
+        }
       }
     }
   }

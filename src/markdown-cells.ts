@@ -15,7 +15,7 @@ class MarkdownCellElement extends BaseNotebookCell {
             if (this.textarea && this.content !== this.textarea.value) {
                 this.textarea.value = this.content;
             }
-            if (!this.isEditing) {
+            if (!this.isEditing && this.viewDiv) {
                 this.renderMarkdown();
             }
         }

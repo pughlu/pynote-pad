@@ -3,7 +3,7 @@ const FORMAT_MESSAGES = {
     invalidConfig: "PyNote Parser: Invalid global config JSON block"
 };
 
-class NotebookFormatConverter {
+export class NotebookFormatConverter {
     /**
      * Converts a Native PyNote Object Array into a .pynote.py Flatfile string
      */

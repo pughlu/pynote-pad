@@ -255,6 +255,7 @@ export class EditorPanel implements IDEPanel {
                 const coreOptions = { ...this.store.options };
                 if (viewMode === 'visual') {
                     // Disable restrictions in visual editor so author can edit freely
+                    coreOptions.ignoreCellLocks = true;
                     coreOptions.questionMode = false;
                     coreOptions.isReadOnly = false;
                     coreOptions.disableInsertAll = false;
@@ -413,9 +414,13 @@ export class EditorPanel implements IDEPanel {
 
     private applyCellConfig(indices: number[] | readonly number[], config: CellConfig): boolean {
         const mountPoint = document.getElementById('pynote-mount-point');
-        if (!mountPoint || !mountPoint.firstElementChild) return false;
+        if (!mountPoint) return false;
 
-        const domCells = Array.from(mountPoint.firstElementChild.children) as any[];
+        const domCells = (window as any).notebookCore?.container 
+            ? Array.from((window as any).notebookCore.container.children) as any[]
+            : Array.from(mountPoint.children) as any[];
+
+        if (!domCells || domCells.length === 0) return false;
         let anySuccess = false;
 
         indices.forEach(idx => {
@@ -450,7 +455,7 @@ export class EditorPanel implements IDEPanel {
 
             if (config.metadata !== undefined) {
                 cell.setAttribute('cell-metadata', JSON.stringify(config.metadata));
-                cell.metadata = config.metadata; // metadata isn't fully observed yet so we update it here
+                cell.metadata = config.metadata;
             }
         });
 
