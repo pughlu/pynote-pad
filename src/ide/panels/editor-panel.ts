@@ -452,11 +452,8 @@ export class EditorPanel implements IDEPanel {
             }
         });
 
-        });
-
-        // Sync back to store and re-render to apply CM extensions
+        // Sync back to store
         this.syncCurrentState();
-        this.renderWorkspace();
     }
 
     destroy(): void {
