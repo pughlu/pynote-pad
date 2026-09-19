@@ -145,7 +145,12 @@ export class NavbarPanel implements IDEPanel {
         document.addEventListener('click', closeAll);
         this.container.querySelectorAll('.dropdown-menu').forEach(menu => {
             menu.addEventListener('click', (e) => {
-                if ((e.target as HTMLElement).tagName !== 'A') e.stopPropagation();
+                const link = (e.target as HTMLElement).closest('a');
+                if (!link) {
+                    e.stopPropagation();
+                } else {
+                    closeAll();
+                }
             });
         });
     }
@@ -242,12 +247,14 @@ export class NavbarPanel implements IDEPanel {
         // Save Flatfile
         this.container.querySelector('#menu-file-save-flat')?.addEventListener('click', (e) => {
             e.preventDefault();
+            this.bus.emit('workspace:sync-request');
             this.downloadFile(this.store.activeFileName + '.pynote.py', this.store.activeContent);
         });
 
         // Save Jupyter
         this.container.querySelector('#menu-file-save-ipynb')?.addEventListener('click', (e) => {
             e.preventDefault();
+            this.bus.emit('workspace:sync-request');
             const converter = window.NotebookFormatConverter;
             const parsedCells = converter ? converter.deserializeFromFlat(this.store.activeContent) : [];
             const cells = parsedCells.map((c: any) => ({
@@ -273,12 +280,14 @@ export class NavbarPanel implements IDEPanel {
         // Save Moodle XML
         this.container.querySelector('#menu-file-save-moodle')?.addEventListener('click', (e) => {
             e.preventDefault();
+            this.bus.emit('workspace:sync-request');
             this.exportMoodleXML();
         });
 
         // Share link
         this.container.querySelector('#menu-file-share')?.addEventListener('click', async (e) => {
             e.preventDefault();
+            this.bus.emit('workspace:sync-request');
             const btnSpan = (e.currentTarget as HTMLElement).querySelector('span');
             if (!btnSpan) return;
             const orig = btnSpan.innerText;

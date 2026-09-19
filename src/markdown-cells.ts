@@ -34,13 +34,13 @@ class MarkdownCellElement extends BaseNotebookCell {
     }
 
     mountContent(container) {
-        if (this.isLocked || !this.isEditable) this.isEditing = false;
+        if (this.effectiveIsLocked || !this.effectiveIsEditable) this.isEditing = false;
 
         this.viewDiv = document.createElement('div');
         this.viewDiv.className = `markdown-body cursor-pointer min-h-[1.75rem] flex-1 ${this.isEditing ? 'hidden' : ''}`;
 
         this.viewDiv.addEventListener('dblclick', () => {
-            if (this.isLocked || !this.isEditable) return;
+            if (this.effectiveIsLocked || !this.effectiveIsEditable) return;
             this.isEditing = true;
             this.toggleMode();
         });
@@ -80,7 +80,7 @@ class MarkdownCellElement extends BaseNotebookCell {
 
         setTimeout(() => { 
             if (typeof autosize !== 'undefined') autosize(this.textarea);
-            if (this.isEditing && !this.isLocked && this.isEditable) this.textarea.focus(); 
+            if (this.isEditing && !this.effectiveIsLocked && this.effectiveIsEditable) this.textarea.focus(); 
         }, 0);
     }
 
@@ -101,7 +101,7 @@ class MarkdownCellElement extends BaseNotebookCell {
     }
 
     getActionButtonConfig() {
-        if (this.isLocked || !this.isEditable) return null;
+        if (this.effectiveIsLocked || !this.effectiveIsEditable) return null;
         if (this.isEditing) {
             return { icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`, title: 'Render Markdown (Shift+Enter)' };
         } else {
@@ -110,7 +110,7 @@ class MarkdownCellElement extends BaseNotebookCell {
     }
 
     handleActionClick() {
-        if (this.isLocked || !this.isEditable) return;
+        if (this.effectiveIsLocked || !this.effectiveIsEditable) return;
         this.isEditing = !this.isEditing;
         if (!this.isEditing) this.renderMarkdown();
         this.toggleMode();
@@ -141,7 +141,15 @@ class MarkdownCellElement extends BaseNotebookCell {
     }
     
     focusCell() { 
-        if (this.isEditing && this.textarea && !this.isLocked && this.isEditable) this.textarea.focus(); 
+        if (this.isEditing && this.textarea && !this.effectiveIsLocked && this.effectiveIsEditable) this.textarea.focus(); 
+    }
+
+    toJSON() {
+        const base: any = super.toJSON();
+        if (this.textarea) {
+            base.content = this.textarea.value;
+        }
+        return base;
     }
 }
 customElements.define('notebook-markdown-cell', MarkdownCellElement);

@@ -21,6 +21,7 @@ export class EditorPanel implements IDEPanel {
     private store: IDEStore;
     private unsubs: Array<() => void> = [];
     private currentRenderedFile: string | null = null;
+    private currentRenderedViewMode: ViewMode = 'visual';
 
     constructor(bus: EventBus, store: IDEStore) {
         this.bus = bus;
@@ -105,10 +106,17 @@ export class EditorPanel implements IDEPanel {
             this.store.setOption('kernelType', val);
         });
 
+        // Live typing listener on raw editor textarea
+        this.rawTextareaEl.addEventListener('input', () => {
+            if (this.currentRenderedViewMode === 'flatfile') {
+                this.store.updateContent(this.rawTextareaEl.value, this.currentRenderedFile || this.store.activeFileName);
+            }
+        });
+
         // Expose triggerHostSync for live notebook keystrokes
         window.triggerHostSync = (flatfilePayload: string) => {
-            if (this.store.viewMode === 'visual') {
-                this.store.updateContent(flatfilePayload);
+            if (this.currentRenderedViewMode === 'visual' || this.currentRenderedViewMode === 'preview') {
+                this.store.updateContent(flatfilePayload, this.currentRenderedFile || this.store.activeFileName);
             }
         };
     }
@@ -125,6 +133,9 @@ export class EditorPanel implements IDEPanel {
             this.bus.on('view:changed', () => {
                 this.syncCurrentState();
                 this.renderWorkspace();
+            }),
+            this.bus.on('workspace:sync-request', () => {
+                this.syncCurrentState();
             }),
             this.bus.on('config:changed', (data) => {
                 if (data.options.kernelType && this.kernelSelectorEl) {
@@ -173,16 +184,16 @@ export class EditorPanel implements IDEPanel {
     }
 
     public syncCurrentState(): boolean {
-        const viewMode = this.store.viewMode;
+        const sourceMode = this.currentRenderedViewMode;
         const targetFile = this.currentRenderedFile || this.store.activeFileName;
 
-        if ((viewMode === 'visual' || viewMode === 'preview') && (window as any).notebookCore) {
+        if ((sourceMode === 'visual' || sourceMode === 'preview') && (window as any).notebookCore) {
             const flat = (window as any).notebookCore.serializeToFlat();
             this.store.updateContent(flat, targetFile);
-        } else if (viewMode === 'flatfile') {
+        } else if (sourceMode === 'flatfile') {
             const flat = this.rawTextareaEl.value;
             this.store.updateContent(flat, targetFile);
-        } else if (viewMode === 'jupyter') {
+        } else if (sourceMode === 'jupyter') {
             try {
                 const ipynb = JSON.parse(this.rawTextareaEl.value);
                 const pynoteCells = ipynb.cells.map((c: any) => {
@@ -253,6 +264,7 @@ export class EditorPanel implements IDEPanel {
 
             if (typeof (window as any).NotebookCore === 'function') {
                 const coreOptions = { ...this.store.options };
+                delete coreOptions.ignoreCellLocks;
                 if (viewMode === 'visual') {
                     // Disable restrictions in visual editor so author can edit freely
                     coreOptions.ignoreCellLocks = true;
@@ -263,6 +275,8 @@ export class EditorPanel implements IDEPanel {
                     coreOptions.disableMove = false;
                     coreOptions.lockAllMarkdown = false;
                     coreOptions.disableTypeChange = false;
+                } else {
+                    coreOptions.ignoreCellLocks = false;
                 }
                 
                 coreOptions.widgetId = activeFile;
@@ -272,10 +286,13 @@ export class EditorPanel implements IDEPanel {
 
                 // Sync loaded file's global config back into store if present
                 if (parsedCells.globalConfig) {
+                    delete parsedCells.globalConfig.ignoreCellLocks;
+                    delete parsedCells.globalConfig.widgetId;
                     this.store.setOptions(parsedCells.globalConfig);
                 }
             }
             this.currentRenderedFile = activeFile;
+            this.currentRenderedViewMode = viewMode;
         } else {
             this.visualWrapperEl.classList.add('hidden');
             this.visualWrapperEl.classList.remove('flex');
@@ -308,6 +325,7 @@ export class EditorPanel implements IDEPanel {
                 }, null, 2);
             }
             this.currentRenderedFile = activeFile;
+            this.currentRenderedViewMode = viewMode;
         }
     }
 

@@ -415,6 +415,11 @@ class BaseNotebookCell extends HTMLElement {
         this.actionBtnElement = null;
         this.resizeObserver = null;
         this.metadata = {};
+        this.isLocked = false;
+        this.isEditable = true;
+        this.isDeletable = true;
+        this.isMoveable = true;
+        this.isHidden = false;
     }
 
     static get observedAttributes() {
@@ -1080,10 +1085,13 @@ class NotebookCore {
         this.sortable = new Sortable(this.container, {
             handle: '.drag-handle',
             animation: 150,
-            filter: '[is-locked]',
+            filter: '[is-locked], [is-moveable="false"]',
             onMove: (evt: any) => {
+                const dragged = evt.dragged;
+                if (dragged && (dragged.effectiveIsLocked || dragged.effectiveIsMoveable === false)) {
+                    return false;
+                }
                 if (this.options.questionMode) {
-                    const dragged = evt.dragged;
                     const related = evt.related;
                     if (!dragged || !related) return false;
                     
@@ -1274,7 +1282,10 @@ class NotebookCore {
     serializeToFlat() {
         const cells: any = this.toJSON();
         // Export the active configuration so the resulting flatfile is self-contained
-        cells.globalConfig = { ...this.options };
+        const cleanConfig: any = { ...this.options };
+        delete cleanConfig.ignoreCellLocks;
+        delete cleanConfig.widgetId;
+        cells.globalConfig = cleanConfig;
         return (window as any).NotebookFormatConverter.serializeToFlat(cells);
     }
 

@@ -60,6 +60,7 @@ export class NotebookFormatConverter {
             };
             const minimalConfig: any = {};
             for (const key in cells.globalConfig) {
+                if (key === 'ignoreCellLocks' || key === 'widgetId') continue;
                 if (cells.globalConfig[key] !== (defaults as any)[key] && cells.globalConfig[key] !== undefined) {
                     minimalConfig[key] = cells.globalConfig[key];
                 }
@@ -197,7 +198,11 @@ export class NotebookFormatConverter {
         });
         
         const result: any = finalCells.length ? finalCells : [{ type: 'code', content: safePayload }];
-        if (globalConfig) result.globalConfig = globalConfig;
+        if (globalConfig) {
+            delete globalConfig.ignoreCellLocks;
+            delete globalConfig.widgetId;
+            result.globalConfig = globalConfig;
+        }
         
         return result;
     }

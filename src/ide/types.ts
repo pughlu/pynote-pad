@@ -50,6 +50,7 @@ export interface IDEEvents {
 
     // View Events
     'view:changed': { viewMode: ViewMode };
+    'workspace:sync-request': void;
 
     // Configuration Events
     'config:changed': { options: IDEOptions };
