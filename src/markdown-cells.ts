@@ -9,6 +9,30 @@ class MarkdownCellElement extends BaseNotebookCell {
         super.connectedCallback();
     }
 
+    attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
+        super.attributeChangedCallback(name, oldVal, newVal);
+        if (name === 'content') {
+            if (this.textarea && this.content !== this.textarea.value) {
+                this.textarea.value = this.content;
+            }
+            if (!this.isEditing) {
+                this.renderMarkdown();
+            }
+        }
+    }
+
+    updateView() {
+        super.updateView();
+        if (this.effectiveIsLocked || !this.effectiveIsEditable) {
+            if (this.isEditing) {
+                this.isEditing = false;
+                this.toggleMode();
+                this.renderMarkdown();
+            }
+        }
+        this.updateActionButton(this.getActionButtonConfig());
+    }
+
     mountContent(container) {
         if (this.isLocked || !this.isEditable) this.isEditing = false;
 

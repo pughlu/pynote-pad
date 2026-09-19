@@ -23,6 +23,39 @@ class CodeCellElement extends BaseNotebookCell {
     checkScroll!: () => void;
     isExecuting!: boolean;
     _kernelStatusHandler!: (e: any) => void;
+    readOnlyCompartment: any;
+    editableCompartment: any;
+
+    attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
+        super.attributeChangedCallback(name, oldVal, newVal);
+        if (name === 'content' && this.editorView && this.content !== this.editorView.state.doc.toString()) {
+            this.editorView.dispatch({
+                changes: {from: 0, to: this.editorView.state.doc.length, insert: this.content}
+            });
+        }
+    }
+
+    updateView() {
+        super.updateView();
+
+        const isLocked = this.effectiveIsLocked || !this.effectiveIsEditable;
+        
+        if (this.editorWrap) {
+            this.editorWrap.className = `w-full flex-1 flex flex-col min-h-[3.25rem] transition-all border border-transparent rounded-md relative box-border cm-wrapper ${isLocked ? 'pointer-events-none opacity-90 bg-slate-100' : 'bg-slate-50'}`;
+        }
+        
+        if (this.editorView && this.readOnlyCompartment && this.editableCompartment) {
+            const ViewObj = cm6.EditorView;
+            const StateObj = cm6.EditorState;
+            
+            this.editorView.dispatch({
+                effects: [
+                    this.editableCompartment.reconfigure(ViewObj && ViewObj.editable ? ViewObj.editable.of(!isLocked) : []),
+                    this.readOnlyCompartment.reconfigure(StateObj && StateObj.readOnly ? StateObj.readOnly.of(isLocked) : [])
+                ]
+            });
+        }
+    }
 
     connectedCallback() {
         this.output = this.getAttribute('output') || '';
@@ -102,13 +135,17 @@ class CodeCellElement extends BaseNotebookCell {
                 ]));
             }
 
-            if (this.effectiveIsLocked || !this.effectiveIsEditable) {
-                const ViewObj = cm6.EditorView;
-                if (ViewObj && ViewObj.editable) customExtensions.push(ViewObj.editable.of(false));
-                
-                const StateObj = cm6.EditorState;
-                if (StateObj && StateObj.readOnly) customExtensions.push(StateObj.readOnly.of(true));
-            }
+            this.readOnlyCompartment = new cm6.Compartment();
+            this.editableCompartment = new cm6.Compartment();
+
+            const isLocked = this.effectiveIsLocked || !this.effectiveIsEditable;
+            const ViewObj = cm6.EditorView;
+            const StateObj = cm6.EditorState;
+
+            customExtensions.push(
+                this.editableCompartment.of(ViewObj && ViewObj.editable ? ViewObj.editable.of(!isLocked) : []),
+                this.readOnlyCompartment.of(StateObj && StateObj.readOnly ? StateObj.readOnly.of(isLocked) : [])
+            );
 
             const EditorView = cm6.EditorView;
             if (EditorView && EditorView.updateListener) {

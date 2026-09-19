@@ -58,6 +58,11 @@ export interface IDEEvents {
     // Cell Selection & Config
     'cell:selection-changed': { indices: number[] | readonly number[] };
     'cell:update-config': { indices: number[] | readonly number[]; config: CellConfig };
+    'cell:update-config-request': {
+        indices: number[] | readonly number[];
+        config: CellConfig;
+        callback?: (success: boolean) => void;
+    };
 
     // Commands / Actions
     'action:new-file': void;

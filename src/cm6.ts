@@ -1,5 +1,5 @@
 import { basicSetup } from "codemirror";
-import { EditorState, Extension } from "@codemirror/state";
+import { EditorState, Extension, Compartment } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { python } from "@codemirror/lang-python";
 import { indentUnit } from "@codemirror/language";
@@ -74,13 +74,14 @@ export function createEditorState(doc: string, config: { extensions: Extension[]
 
 // Export namespaces and modules for backwards compatibility
 export const language = { indentUnit };
-export const state = { EditorState };
+export const state = { EditorState, Compartment };
 export const view = { EditorView };
 export const commands = { indentMore, indentLess };
 
 export {
   EditorState,
   EditorView,
+  Compartment,
   basicSetup,
   python,
   keymap,
@@ -99,6 +100,7 @@ if (typeof window !== 'undefined') {
   (window as any).cm6 = {
     EditorView,
     EditorState,
+    Compartment,
     basicSetup,
     python,
     language,

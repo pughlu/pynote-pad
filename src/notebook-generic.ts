@@ -414,6 +414,30 @@ class BaseNotebookCell extends HTMLElement {
         this.resizeObserver = null;
     }
 
+    static get observedAttributes() {
+        return ['is-locked', 'is-editable', 'is-deletable', 'is-moveable', 'is-hidden', 'content'];
+    }
+
+    attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null) {
+        if (oldValue === newValue) return;
+
+        if (name === 'is-locked') this.isLocked = newValue !== null;
+        if (name === 'is-editable') this.isEditable = newValue !== 'false';
+        if (name === 'is-deletable') this.isDeletable = newValue !== 'false';
+        if (name === 'is-moveable') this.isMoveable = newValue !== 'false';
+        if (name === 'is-hidden') this.isHidden = newValue !== null;
+        if (name === 'content') this.content = newValue || '';
+
+        if (this._initialized) {
+            this.updateView();
+        }
+    }
+
+    dragHandle?: HTMLDivElement;
+    toolbar?: HTMLDivElement;
+    typeDropdown?: HTMLDivElement;
+    typeSeparator?: HTMLDivElement;
+
     connectedCallback() {
         if (this._initialized) return;
         this._initialized = true;
@@ -423,13 +447,13 @@ class BaseNotebookCell extends HTMLElement {
         this.content = this.getAttribute('content') || '';
         this.isLocked = this.hasAttribute('is-locked');
         this.isHidden = this.hasAttribute('is-hidden');
-        // By default these are true, so we check if they are explicitly set to false
         this.isEditable = this.getAttribute('is-editable') !== 'false';
         this.isDeletable = this.getAttribute('is-deletable') !== 'false';
         this.isMoveable = this.getAttribute('is-moveable') !== 'false';
 
         this.renderShell();
         this.mountContent(this.contentArea);
+        this.updateView();
 
         this.resizeObserver = new ResizeObserver(() => {
             this.dispatchAction('cell-height-changed');
@@ -446,77 +470,119 @@ class BaseNotebookCell extends HTMLElement {
         this.dispatchEvent(new CustomEvent(eventName, { detail: { id: this.cellId, ...detail }, bubbles: true, composed: true }));
     }
 
+    updateView() {
+        const isReadOnlyGlobal = (window as any).notebookCore?.options?.isReadOnly;
+        const disableMove = (window as any).notebookCore?.options?.disableMove;
+        const disableDelete = (window as any).notebookCore?.options?.disableDelete;
+        const disableTypeChange = (window as any).notebookCore?.options?.disableTypeChange;
+        const disableInsert = (window as any).notebookCore?.options?.disableInsertAll;
+
+        if (this.effectiveIsLocked || isReadOnlyGlobal) {
+            this.mainBox.classList.add('bg-slate-50');
+        } else {
+            this.mainBox.classList.remove('bg-slate-50');
+        }
+
+        if (this.dragHandle) {
+            this.dragHandle.style.display = (!this.effectiveIsLocked && this.effectiveIsMoveable && !isReadOnlyGlobal && !disableMove) ? 'block' : 'none';
+        }
+
+        if (this.toolbar) {
+            const showToolbar = !this.effectiveIsLocked && !isReadOnlyGlobal;
+            if (showToolbar) {
+                let toolCount = 0;
+                
+                if (this.typeDropdown) {
+                    if (!disableTypeChange) {
+                        this.typeDropdown.style.display = 'flex';
+                        toolCount++;
+                    } else {
+                        this.typeDropdown.style.display = 'none';
+                    }
+                }
+                
+                if (this.deleteBtn) {
+                    if (!disableDelete && this.effectiveIsDeletable) {
+                        this.deleteBtn.style.display = 'block';
+                        toolCount++;
+                    } else {
+                        this.deleteBtn.style.display = 'none';
+                    }
+                }
+
+                if (this.typeSeparator) {
+                    this.typeSeparator.style.display = (!disableTypeChange && !disableDelete && this.effectiveIsDeletable) ? 'block' : 'none';
+                }
+
+                this.toolbar.style.display = toolCount > 0 ? 'flex' : 'none';
+            } else {
+                this.toolbar.style.display = 'none';
+            }
+        }
+        
+        if (this.botInserter) {
+            if (!isReadOnlyGlobal && !disableInsert) {
+                // In question mode, botInserter visibility is further refined by updateQuestionModeVisibility
+                this.botInserter.style.display = 'flex';
+            } else {
+                this.botInserter.style.display = 'none';
+            }
+        }
+
+        if ((window as any).notebookCore) {
+            (window as any).notebookCore.updateQuestionModeVisibility();
+        }
+    }
+
     renderShell() {
         this.className = 'cell-wrapper relative flex flex-col w-full my-1.5 group/wrapper block box-border';
 
         this.mainBox = document.createElement('div');
         this.mainBox.className = 'cell-container group/cell relative bg-white border border-slate-200 rounded-md shadow-sm flex items-stretch transition-all hover:border-slate-300 min-h-[1.75rem] box-border';
 
-        const isReadOnlyGlobal = window.notebookCore && window.notebookCore.options && window.notebookCore.options.isReadOnly;
-        // --- NEW: Grab the disableMove flag ---
-        const disableMove = window.notebookCore && window.notebookCore.options && window.notebookCore.options.disableMove;
-
-        if (this.effectiveIsLocked || isReadOnlyGlobal) {
-            this.mainBox.classList.add('bg-slate-50');
-        }
-
-        // --- UPDATED: Hide the drag handle if movement is disabled ---
-        if (!this.effectiveIsLocked && this.effectiveIsMoveable && !isReadOnlyGlobal && !disableMove) {
-            const dragHandle = document.createElement('div');
-            dragHandle.className = 'drag-handle absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-blue-600 group-hover/cell:bg-blue-400 cursor-grab z-30 rounded-l-md opacity-0 group-hover/cell:opacity-100 transition-all';
-            this.mainBox.appendChild(dragHandle);
-        }
+        this.dragHandle = document.createElement('div');
+        this.dragHandle.className = 'drag-handle absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-blue-600 group-hover/cell:bg-blue-400 cursor-grab z-30 rounded-l-md opacity-0 group-hover/cell:opacity-100 transition-all';
+        this.mainBox.appendChild(this.dragHandle);
 
         this.contentArea = document.createElement('div');
         this.contentArea.className = 'flex-1 relative flex flex-col min-w-0 p-0 box-border min-h-0';
 
-        const disableTypeChange = window.notebookCore && window.notebookCore.options && window.notebookCore.options.disableTypeChange;
-        const disableDelete = window.notebookCore && window.notebookCore.options && window.notebookCore.options.disableDelete;
+        this.toolbar = document.createElement('div');
+        this.toolbar.className = 'cell-toolbar absolute z-40 flex items-center gap-1 bg-white/95 backdrop-blur-sm shadow-sm border border-slate-200 rounded-md px-1.5 py-0.5 opacity-0 group-hover/cell:opacity-100 transition-all text-xs';
 
-        if (!this.effectiveIsLocked && !isReadOnlyGlobal) {
-            const toolbar = document.createElement('div');
-            toolbar.className = 'cell-toolbar absolute z-40 flex items-center gap-1 bg-white/95 backdrop-blur-sm shadow-sm border border-slate-200 rounded-md px-1.5 py-0.5 opacity-0 group-hover/cell:opacity-100 transition-all text-xs';
-
-            if (!disableTypeChange) {
-                const dropdownWrap = document.createElement('div');
-                dropdownWrap.className = 'relative flex items-center justify-center rounded hover:bg-slate-100 transition-colors text-slate-500 font-medium px-1 cursor-pointer';
-                dropdownWrap.innerHTML = `
-                    <span>${this.cellType}</span>
-                    <svg class="w-3 h-3 ml-0.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    <select class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" title="Change Cell Type">
-                        <option value="code" ${this.cellType === 'code' ? 'selected' : ''}>code</option>
-                        <option value="markdown" ${this.cellType === 'markdown' ? 'selected' : ''}>markdown</option>
-                        <option value="text" ${this.cellType === 'text' ? 'selected' : ''}>text</option>
-                    </select>
-                `;
-                (dropdownWrap.querySelector('select') as HTMLSelectElement).addEventListener('change', (e) => {
-                    this.dispatchAction('cell-type-changed', { newType: (e.target as any).value, content: this.content });
-                });
-                toolbar.appendChild(dropdownWrap);
+        this.typeDropdown = document.createElement('div');
+        this.typeDropdown.className = 'relative flex items-center justify-center rounded hover:bg-slate-100 transition-colors text-slate-500 font-medium px-1 cursor-pointer';
+        this.typeDropdown.innerHTML = `
+            <span>${this.cellType}</span>
+            <svg class="w-3 h-3 ml-0.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <select class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" title="Change Cell Type">
+                <option value="code" ${this.cellType === 'code' ? 'selected' : ''}>code</option>
+                <option value="markdown" ${this.cellType === 'markdown' ? 'selected' : ''}>markdown</option>
+                <option value="text" ${this.cellType === 'text' ? 'selected' : ''}>text</option>
+            </select>
+        `;
+        (this.typeDropdown.querySelector('select') as HTMLSelectElement).addEventListener('change', (e) => {
+            this.dispatchAction('cell-type-changed', { newType: (e.target as any).value, content: this.content });
+        });
+        
+        this.deleteBtn = document.createElement('button');
+        this.deleteBtn.className = 'delete-btn text-slate-400 hover:text-red-500 p-0.5 rounded transition-colors ml-0.5 pl-1 border-l border-slate-200';
+        this.deleteBtn.title = 'delete cell';
+        this.deleteBtn.innerHTML = `<svg class="w-3 h-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+        this.deleteBtn.onclick = (e) => {
+            if (this.deleteBtn!.classList.contains('cursor-not-allowed')) {
+                e.stopPropagation(); return;
             }
+            this.dispatchAction('cell-deleted');
+        };
 
-            if (!disableDelete && this.effectiveIsDeletable) {
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'delete-btn text-slate-400 hover:text-red-500 p-0.5 rounded transition-colors ml-0.5 pl-1';
-                if (!disableTypeChange) deleteBtn.classList.add('border-l', 'border-slate-200');
-                deleteBtn.title = 'delete cell';
-                deleteBtn.innerHTML = `<svg class="w-3 h-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
-                deleteBtn.onclick = (e) => {
-                    if (deleteBtn.classList.contains('cursor-not-allowed')) {
-                        e.stopPropagation();
-                        return;
-                    }
-                    this.dispatchAction('cell-deleted');
-                };
-                toolbar.appendChild(deleteBtn);
-                this.deleteBtn = deleteBtn;
-            }
+        this.typeSeparator = document.createElement('div');
+        this.typeSeparator.className = 'w-px h-3 bg-slate-200 mx-0.5';
 
-            // Only append the toolbar container if it actually has tools inside it!
-            if (!disableTypeChange || (!disableDelete && this.effectiveIsDeletable)) {
-                this.contentArea.appendChild(toolbar);
-            }
-        }
+        this.toolbar.appendChild(this.typeDropdown);
+        this.toolbar.appendChild(this.typeSeparator);
+        this.toolbar.appendChild(this.deleteBtn);
+        this.contentArea.appendChild(this.toolbar);
 
         this.actionBtnElement = document.createElement('button');
         this.actionBtnElement.className = 'cell-action-btn absolute z-30 flex items-center justify-center w-7 h-7 text-white bg-blue-500 hover:bg-blue-600 rounded-full shadow-md transition-all opacity-0 hidden group-hover/cell:opacity-100';
@@ -526,22 +592,19 @@ class BaseNotebookCell extends HTMLElement {
         this.mainBox.appendChild(this.contentArea);
         this.appendChild(this.mainBox);
 
-        const disableInsert = window.notebookCore && window.notebookCore.options && window.notebookCore.options.disableInsertAll;
-        if (!isReadOnlyGlobal && !disableInsert) {
-            this.botInserter = document.createElement('div');
-            this.botInserter.className = 'absolute left-0 right-0 h-3 group-hover/inserter:h-6 transition-all duration-300 delay-0 group-hover/inserter:delay-250 flex items-center justify-center group/inserter cursor-pointer z-10 w-4/5 mx-auto';
-            this.botInserter.style.top = 'calc(100% + 6px)';
-            this.botInserter.style.transform = 'translateY(-50%)';
-            this.botInserter.title = `Add cell below`;
-            this.botInserter.innerHTML = `
-                <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center"><div class="h-px w-full bg-transparent group-hover/inserter:bg-blue-400 transition-colors"></div></div>
-                <div class="relative z-10 flex items-center justify-center w-7 h-7 text-white bg-blue-500 hover:bg-blue-600 rounded-full shadow-md opacity-0 group-hover/inserter:opacity-100 transition-all duration-300 delay-0 group-hover/inserter:delay-250 mx-auto">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"></path></svg>
-                </div>
-            `;
-            this.botInserter.onclick = () => this.dispatchAction('cell-insert-below');
-            if (this.cellType !== 'code') this.appendChild(this.botInserter);
-        }
+        this.botInserter = document.createElement('div');
+        this.botInserter.className = 'absolute left-0 right-0 h-3 group-hover/inserter:h-6 transition-all duration-300 delay-0 group-hover/inserter:delay-250 flex items-center justify-center group/inserter cursor-pointer z-10 w-4/5 mx-auto';
+        this.botInserter.style.top = 'calc(100% + 6px)';
+        this.botInserter.style.transform = 'translateY(-50%)';
+        this.botInserter.title = `Add cell below`;
+        this.botInserter.innerHTML = `
+            <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center"><div class="h-px w-full bg-transparent group-hover/inserter:bg-blue-400 transition-colors"></div></div>
+            <div class="relative z-10 flex items-center justify-center w-7 h-7 text-white bg-blue-500 hover:bg-blue-600 rounded-full shadow-md opacity-0 group-hover/inserter:opacity-100 transition-all duration-300 delay-0 group-hover/inserter:delay-250 mx-auto">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"></path></svg>
+            </div>
+        `;
+        this.botInserter.onclick = () => this.dispatchAction('cell-insert-below');
+        if (this.cellType !== 'code') this.appendChild(this.botInserter);
     }
 
     mountContent(container) { }

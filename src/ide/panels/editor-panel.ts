@@ -142,6 +142,10 @@ export class EditorPanel implements IDEPanel {
             }),
             this.bus.on('cell:update-config', ({ indices, config }) => {
                 this.applyCellConfig(indices, config);
+            }),
+            this.bus.on('cell:update-config-request', ({ indices, config, callback }) => {
+                const success = this.applyCellConfig(indices, config);
+                if (callback) callback(success);
             })
         );
 
@@ -407,53 +411,53 @@ export class EditorPanel implements IDEPanel {
         input.ondblclick = (e) => e.stopPropagation();
     }
 
-    private applyCellConfig(indices: number[] | readonly number[], config: CellConfig): void {
+    private applyCellConfig(indices: number[] | readonly number[], config: CellConfig): boolean {
         const mountPoint = document.getElementById('pynote-mount-point');
-        if (!mountPoint || !mountPoint.firstElementChild) return;
+        if (!mountPoint || !mountPoint.firstElementChild) return false;
 
         const domCells = Array.from(mountPoint.firstElementChild.children) as any[];
+        let anySuccess = false;
 
         indices.forEach(idx => {
             const cell = domCells[idx];
             if (!cell) return;
+            anySuccess = true;
 
             if (config.isLocked !== undefined) {
                 if (config.isLocked) cell.setAttribute('is-locked', '');
                 else cell.removeAttribute('is-locked');
-                cell.isLocked = config.isLocked;
             }
 
             if (config.isEditable !== undefined) {
                 if (!config.isEditable) cell.setAttribute('is-editable', 'false');
                 else cell.removeAttribute('is-editable');
-                cell.isEditable = config.isEditable;
             }
 
             if (config.isDeletable !== undefined) {
                 if (!config.isDeletable) cell.setAttribute('is-deletable', 'false');
                 else cell.removeAttribute('is-deletable');
-                cell.isDeletable = config.isDeletable;
             }
 
             if (config.isMoveable !== undefined) {
                 if (!config.isMoveable) cell.setAttribute('is-moveable', 'false');
                 else cell.removeAttribute('is-moveable');
-                cell.isMoveable = config.isMoveable;
             }
 
             if (config.isHidden !== undefined) {
                 if (config.isHidden) cell.setAttribute('is-hidden', '');
                 else cell.removeAttribute('is-hidden');
-                cell.isHidden = config.isHidden;
             }
 
             if (config.metadata !== undefined) {
-                cell.metadata = config.metadata;
+                cell.setAttribute('cell-metadata', JSON.stringify(config.metadata));
+                cell.metadata = config.metadata; // metadata isn't fully observed yet so we update it here
             }
         });
 
-        // Sync back to store
-        this.syncCurrentState();
+        if (anySuccess) {
+            this.syncCurrentState();
+        }
+        return anySuccess;
     }
 
     destroy(): void {

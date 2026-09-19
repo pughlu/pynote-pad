@@ -203,8 +203,17 @@ export class ConfigPanel implements IDEPanel {
                 metadata: metaObj
             };
 
-            // Emit to event bus -> handled by EditorPanel without direct DOM querying
-            this.bus.emit('cell:update-config', { indices, config });
+            // Emit to event bus -> handled by EditorPanel with callback for optimistic UI rollback
+            this.bus.emit('cell:update-config-request', { 
+                indices, 
+                config,
+                callback: (success: boolean) => {
+                    if (!success) {
+                        // Revert UI to match actual state if update failed
+                        this.syncCellUI(indices);
+                    }
+                }
+            });
         };
 
         [this.lockInput, this.editInput, this.deleteInput, this.moveInput, this.hideInput].forEach(inp => {
