@@ -395,10 +395,17 @@ class BaseNotebookCell extends HTMLElement {
     isEditable!: boolean;
     isDeletable!: boolean;
     isMoveable!: boolean;
+
+    get effectiveIsLocked() { return (window as any).notebookCore?.options?.ignoreCellLocks ? false : this.isLocked; }
+    get effectiveIsEditable() { return (window as any).notebookCore?.options?.ignoreCellLocks ? true : this.isEditable; }
+    get effectiveIsDeletable() { return (window as any).notebookCore?.options?.ignoreCellLocks ? true : this.isDeletable; }
+    get effectiveIsMoveable() { return (window as any).notebookCore?.options?.ignoreCellLocks ? true : this.isMoveable; }
+
     isHidden!: boolean;
     mainBox!: HTMLDivElement;
     contentArea!: HTMLDivElement;
     botInserter?: HTMLDivElement;
+    deleteBtn?: HTMLButtonElement;
 
     constructor() {
         super();
@@ -449,12 +456,12 @@ class BaseNotebookCell extends HTMLElement {
         // --- NEW: Grab the disableMove flag ---
         const disableMove = window.notebookCore && window.notebookCore.options && window.notebookCore.options.disableMove;
 
-        if (this.isLocked || isReadOnlyGlobal) {
+        if (this.effectiveIsLocked || isReadOnlyGlobal) {
             this.mainBox.classList.add('bg-slate-50');
         }
 
         // --- UPDATED: Hide the drag handle if movement is disabled ---
-        if (!this.isLocked && this.isMoveable && !isReadOnlyGlobal && !disableMove) {
+        if (!this.effectiveIsLocked && this.effectiveIsMoveable && !isReadOnlyGlobal && !disableMove) {
             const dragHandle = document.createElement('div');
             dragHandle.className = 'drag-handle absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-blue-600 group-hover/cell:bg-blue-400 cursor-grab z-30 rounded-l-md opacity-0 group-hover/cell:opacity-100 transition-all';
             this.mainBox.appendChild(dragHandle);
@@ -466,7 +473,7 @@ class BaseNotebookCell extends HTMLElement {
         const disableTypeChange = window.notebookCore && window.notebookCore.options && window.notebookCore.options.disableTypeChange;
         const disableDelete = window.notebookCore && window.notebookCore.options && window.notebookCore.options.disableDelete;
 
-        if (!this.isLocked && !isReadOnlyGlobal) {
+        if (!this.effectiveIsLocked && !isReadOnlyGlobal) {
             const toolbar = document.createElement('div');
             toolbar.className = 'cell-toolbar absolute z-40 flex items-center gap-1 bg-white/95 backdrop-blur-sm shadow-sm border border-slate-200 rounded-md px-1.5 py-0.5 opacity-0 group-hover/cell:opacity-100 transition-all text-xs';
 
@@ -488,18 +495,25 @@ class BaseNotebookCell extends HTMLElement {
                 toolbar.appendChild(dropdownWrap);
             }
 
-            if (!disableDelete && this.isDeletable) {
+            if (!disableDelete && this.effectiveIsDeletable) {
                 const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'text-slate-400 hover:text-red-500 p-0.5 rounded transition-colors ml-0.5 pl-1';
+                deleteBtn.className = 'delete-btn text-slate-400 hover:text-red-500 p-0.5 rounded transition-colors ml-0.5 pl-1';
                 if (!disableTypeChange) deleteBtn.classList.add('border-l', 'border-slate-200');
                 deleteBtn.title = 'delete cell';
-                deleteBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
-                deleteBtn.onclick = () => this.dispatchAction('cell-deleted');
+                deleteBtn.innerHTML = `<svg class="w-3 h-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+                deleteBtn.onclick = (e) => {
+                    if (deleteBtn.classList.contains('cursor-not-allowed')) {
+                        e.stopPropagation();
+                        return;
+                    }
+                    this.dispatchAction('cell-deleted');
+                };
                 toolbar.appendChild(deleteBtn);
+                this.deleteBtn = deleteBtn;
             }
 
             // Only append the toolbar container if it actually has tools inside it!
-            if (!disableTypeChange || (!disableDelete && this.isDeletable)) {
+            if (!disableTypeChange || (!disableDelete && this.effectiveIsDeletable)) {
                 this.contentArea.appendChild(toolbar);
             }
         }
@@ -745,12 +759,12 @@ class NotebookCore {
             if (this.options.disableDelete) return; // <-- LOGIC SAFEGUARD
 
             const el = (e.target as any);
-            if (!this.isReadOnly && el && !el.isLocked && el.isDeletable) {
+            if (!this.isReadOnly && el && !el.effectiveIsLocked && el.effectiveIsDeletable) {
                 if (this.options.questionMode && el.cellType === 'code') {
                     const prev = el.previousElementSibling;
                     const next = el.nextElementSibling;
-                    const prevIsCode = prev && prev.cellType === 'code' && !prev.isLocked && prev.isEditable !== false;
-                    const nextIsCode = next && next.cellType === 'code' && !next.isLocked && next.isEditable !== false;
+                    const prevIsCode = prev && prev.cellType === 'code' && !prev.effectiveIsLocked && prev.effectiveIsEditable !== false;
+                    const nextIsCode = next && next.cellType === 'code' && !next.effectiveIsLocked && next.effectiveIsEditable !== false;
                     
                     if (!prevIsCode && !nextIsCode) {
                         alert("Cannot delete this code cell: at least one adjacent code cell is required in Question Mode.");
@@ -780,7 +794,7 @@ class NotebookCore {
         this.container.addEventListener('cell-type-changed', (e) => {
             if (this.isReadOnly) return;
             const oldEl = (e.target as any);
-            if (oldEl.isLocked || !oldEl.isMoveable) return;
+            if (oldEl.effectiveIsLocked || !oldEl.effectiveIsMoveable) return;
 
             const newType = ((e as any).detail as any).newType;
             const content = ((e as any).detail as any).content;
@@ -937,7 +951,7 @@ class NotebookCore {
         const children = Array.from(this.container.children) as any[];
         const topInserter = document.getElementById('top-inserter');
         if (topInserter) {
-            if (children.length > 0 && children[0].cellType === 'code' && !children[0].isLocked && children[0].isEditable !== false) {
+            if (children.length > 0 && children[0].cellType === 'code' && !children[0].effectiveIsLocked && children[0].effectiveIsEditable !== false) {
                 topInserter.style.display = 'flex';
             } else {
                 topInserter.style.display = 'none';
@@ -945,15 +959,36 @@ class NotebookCore {
         }
         for (let i = 0; i < children.length; i++) {
             const cell = children[i];
-            if (!cell.botInserter) continue;
-            const isCode = cell.cellType === 'code' && !cell.isLocked && cell.isEditable !== false;
+            const isCode = cell.cellType === 'code' && !cell.effectiveIsLocked && cell.effectiveIsEditable !== false;
             const next = children[i+1];
-            const nextIsCode = next && next.cellType === 'code' && !next.isLocked && next.isEditable !== false;
+            const nextIsCode = next && next.cellType === 'code' && !next.effectiveIsLocked && next.effectiveIsEditable !== false;
             
-            if (isCode || nextIsCode) {
-                cell.botInserter.style.display = 'flex';
-            } else {
-                cell.botInserter.style.display = 'none';
+            if (cell.botInserter) {
+                if (isCode || nextIsCode) {
+                    cell.botInserter.style.display = 'flex';
+                } else {
+                    cell.botInserter.style.display = 'none';
+                }
+            }
+
+            if (cell.deleteBtn) {
+                if (isCode) {
+                    const prev = cell.previousElementSibling;
+                    const prevIsCode = prev && prev.cellType === 'code' && !prev.effectiveIsLocked && prev.effectiveIsEditable !== false;
+                    if (!prevIsCode && !nextIsCode) {
+                        cell.deleteBtn.classList.add('opacity-30', 'cursor-not-allowed');
+                        cell.deleteBtn.classList.remove('hover:text-red-500');
+                        cell.deleteBtn.title = "Cannot delete the last editable code cell";
+                    } else {
+                        cell.deleteBtn.classList.remove('opacity-30', 'cursor-not-allowed');
+                        cell.deleteBtn.classList.add('hover:text-red-500');
+                        cell.deleteBtn.title = "delete cell";
+                    }
+                } else {
+                    cell.deleteBtn.classList.remove('opacity-30', 'cursor-not-allowed');
+                    cell.deleteBtn.classList.add('hover:text-red-500');
+                    cell.deleteBtn.title = "delete cell";
+                }
             }
         }
     }
@@ -972,8 +1007,8 @@ class NotebookCore {
                     const related = evt.related;
                     if (!dragged || !related) return false;
                     
-                    const draggedIsCode = dragged.cellType === 'code' && !dragged.isLocked && dragged.isEditable !== false;
-                    const relatedIsCode = related.cellType === 'code' && !related.isLocked && related.isEditable !== false;
+                    const draggedIsCode = dragged.cellType === 'code' && !dragged.effectiveIsLocked && dragged.effectiveIsEditable !== false;
+                    const relatedIsCode = related.cellType === 'code' && !related.effectiveIsLocked && related.effectiveIsEditable !== false;
                     
                     if (draggedIsCode && relatedIsCode) return true;
                     return false;
@@ -1050,10 +1085,10 @@ class NotebookCore {
         if (!selected) return;
 
         const { index, el } = selected;
-        if (el.isLocked || el.isEditable === false) return;
+        if (el.effectiveIsLocked || el.effectiveIsEditable === false) return;
 
-        const nextEl = el.nextSibling as any;
-        if (!nextEl || nextEl.isLocked || nextEl.isDeletable === false) return;
+        const nextEl = el.nextElementSibling as any;
+        if (!nextEl || nextEl.effectiveIsLocked || nextEl.effectiveIsDeletable === false) return;
 
         // Get current and next contents
         let currentContent = '';
@@ -1112,8 +1147,8 @@ class NotebookCore {
         const selected = this.getSelectedCell();
         if (!selected) return;
 
-        const { el } = selected;
-        if (!this.isReadOnly && !el.isLocked && el.isDeletable !== false) {
+        const { index, el } = selected;
+        if (!this.isReadOnly && !el.effectiveIsLocked && el.effectiveIsDeletable !== false) {
             el.remove();
             this.selectedIndices = [];
             this.syncToServer();
