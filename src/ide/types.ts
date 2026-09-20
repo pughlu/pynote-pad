@@ -1,6 +1,8 @@
 // src/ide/types.ts
 // Pragmatic Programmer: Design by Contract & Type-Safe Communication
 
+import { StorageProvider } from './storage/types';
+
 export type ViewMode = 'visual' | 'preview' | 'flatfile' | 'jupyter';
 
 export interface IDEOptions {
@@ -35,6 +37,8 @@ export interface IDEState {
     options: IDEOptions;
     selectedCellIndices: number[];
     selectedFiles: Set<string>;
+    activeProvider: StorageProvider | null;
+    isSyncing: boolean;
 }
 
 export interface IDEEvents {
@@ -47,6 +51,12 @@ export interface IDEEvents {
     'file:content-updated': { fileName: string; content: string };
     'files:changed': { files: Record<string, string>; activeFileName: string };
     'file:selection-toggled': { fileName: string; isSelected: boolean };
+    
+    // Sync Events
+    'sync:start': void;
+    'sync:complete': void;
+    'sync:error': { error: Error };
+    'provider:changed': { provider: StorageProvider | null };
 
     // View Events
     'view:changed': { viewMode: ViewMode };

@@ -8,9 +8,14 @@ import { FileExplorerPanel } from './panels/file-explorer';
 import { EditorPanel } from './panels/editor-panel';
 import { ConfigPanel } from './panels/config-panel';
 
+import { StorageProviderRegistry } from './storage/registry';
+import { OneDriveProvider } from './storage/onedrive-provider';
+import { GoogleDriveProvider } from './storage/google-drive-provider';
+
 export class PyNoteIDE {
     public bus: EventBus;
     public store: IDEStore;
+    public providerRegistry: StorageProviderRegistry;
 
     public navbarPanel!: NavbarPanel;
     public fileExplorerPanel!: FileExplorerPanel;
@@ -22,6 +27,11 @@ export class PyNoteIDE {
     constructor() {
         this.bus = new EventBus();
         this.store = new IDEStore(this.bus);
+        
+        // Initialize Registry and Providers
+        this.providerRegistry = new StorageProviderRegistry();
+        this.providerRegistry.register(new OneDriveProvider());
+        this.providerRegistry.register(new GoogleDriveProvider());
     }
 
     async boot(): Promise<void> {
@@ -48,7 +58,7 @@ export class PyNoteIDE {
         // 3. Mount File Explorer (LHS)
         const lhsContainer = document.getElementById('lhs-panel');
         if (lhsContainer) {
-            this.fileExplorerPanel = new FileExplorerPanel(this.bus, this.store);
+            this.fileExplorerPanel = new FileExplorerPanel(this.bus, this.store, this.providerRegistry);
             this.fileExplorerPanel.mount(lhsContainer);
         }
 

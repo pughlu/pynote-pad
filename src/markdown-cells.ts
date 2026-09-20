@@ -2,7 +2,7 @@ class MarkdownCellElement extends BaseNotebookCell {
     isEditing!: boolean;
     viewDiv!: HTMLDivElement;
     editDiv!: HTMLDivElement;
-    textarea!: HTMLTextAreaElement;
+    editorView!: any;
 
     connectedCallback() {
         this.isEditing = this.hasAttribute('is-editing');
@@ -12,8 +12,10 @@ class MarkdownCellElement extends BaseNotebookCell {
     attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
         super.attributeChangedCallback(name, oldVal, newVal);
         if (name === 'content') {
-            if (this.textarea && this.content !== this.textarea.value) {
-                this.textarea.value = this.content;
+            if (this.editorView && this.content !== this.editorView.state.doc.toString()) {
+                this.editorView.dispatch({
+                    changes: { from: 0, to: this.editorView.state.doc.length, insert: this.content }
+                });
             }
             if (!this.isEditing && this.viewDiv) {
                 this.renderMarkdown();
@@ -48,39 +50,58 @@ class MarkdownCellElement extends BaseNotebookCell {
         this.editDiv = document.createElement('div');
         this.editDiv.className = `w-full flex-col ${this.isEditing ? 'flex' : 'hidden'}`;
         
-        this.textarea = document.createElement('textarea');
-        this.textarea.className = 'w-full min-h-[3.25rem] py-2.5 pl-4 pr-10 bg-transparent text-[14px] text-slate-700 font-mono focus:outline-none block border-0 leading-relaxed resize-none overflow-hidden';
-        this.textarea.value = this.content;
-        this.textarea.placeholder = "Type Markdown here... ($math$ supported). Shift+Enter to render.";
-        
-        this.textarea.addEventListener('input', () => {
-            this.content = this.textarea.value;
-            if (typeof autosize !== 'undefined') autosize.update(this.textarea);
-            this.dispatchAction('cell-content-changed');
-        });
-
-        this.textarea.addEventListener('focus', () => {
-            if (window.notebookCore) window.notebookCore.activeCodeEditor = null;
-        });
-
-        this.textarea.addEventListener('keydown', (e) => {
-            if (e.shiftKey && e.key === 'Enter') {
-                e.preventDefault();
-                this.handleActionClick();
-            }
-        });
-
-        this.editDiv.appendChild(this.textarea);
-        
         container.appendChild(this.viewDiv);
         container.appendChild(this.editDiv);
 
+        if (typeof window !== 'undefined' && (window as any).cm6) {
+            const cm6 = (window as any).cm6;
+            
+            const customExtensions = [
+                cm6.basicSetup,
+                cm6.markdown(),
+                cm6.EditorView.lineWrapping,
+                // Transparent theme
+                cm6.EditorView.theme({
+                    "&": { backgroundColor: "transparent" },
+                    ".cm-scroller": { fontFamily: "'Inter', sans-serif", fontSize: "14px" },
+                    ".cm-content": { minHeight: "3.25rem", padding: "10px 16px 10px 16px", color: "#334155" },
+                    "&.cm-focused": { outline: "none" }
+                }),
+                // Shift+Enter keymap
+                cm6.keymap.of([{
+                    key: "Shift-Enter",
+                    run: () => {
+                        this.handleActionClick();
+                        return true;
+                    }
+                }]),
+                // Update listener for sync
+                cm6.EditorView.updateListener.of((update: any) => {
+                    if (update.docChanged) {
+                        this.content = update.state.doc.toString();
+                        this.dispatchAction('cell-content-changed');
+                    }
+                }),
+                // Focus listener to track active editor
+                cm6.EditorView.domEventHandlers({
+                    focus: () => {
+                        if (window.notebookCore) window.notebookCore.activeCodeEditor = null;
+                        return false;
+                    }
+                })
+            ];
+
+            const state = cm6.createEditorState(this.content || '', { extensions: customExtensions });
+            this.editorView = cm6.createEditorView(state, this.editDiv);
+        }
+        
         this.renderMarkdown();
         this.updateActionButton(this.getActionButtonConfig());
 
         setTimeout(() => { 
-            if (typeof autosize !== 'undefined') autosize(this.textarea);
-            if (this.isEditing && !this.effectiveIsLocked && this.effectiveIsEditable) this.textarea.focus(); 
+            if (this.isEditing && !this.effectiveIsLocked && this.effectiveIsEditable && this.editorView) {
+                this.editorView.focus(); 
+            }
         }, 0);
     }
 
@@ -123,8 +144,9 @@ class MarkdownCellElement extends BaseNotebookCell {
             this.editDiv.classList.remove('hidden');
             this.editDiv.classList.add('flex');
             setTimeout(() => { 
-                if (typeof autosize !== 'undefined') autosize.update(this.textarea); 
-                this.textarea.focus(); 
+                if (this.editorView) {
+                    this.editorView.focus();
+                }
             }, 0);
         } else {
             this.editDiv.classList.add('hidden');
@@ -136,19 +158,19 @@ class MarkdownCellElement extends BaseNotebookCell {
     }
 
     refresh() { 
-        if (this.textarea && typeof autosize !== 'undefined') autosize.update(this.textarea); 
         this.dispatchAction('cell-height-changed');
     }
     
     focusCell() { 
-        if (this.isEditing && this.textarea && !this.effectiveIsLocked && this.effectiveIsEditable) this.textarea.focus(); 
+        if (this.isEditing && this.editorView && !this.effectiveIsLocked && this.effectiveIsEditable) {
+            this.editorView.focus(); 
+        }
     }
 
     toJSON() {
         const base: any = super.toJSON();
-        if (this.textarea) {
-            base.content = this.textarea.value;
-        }
+        // this.content is kept perfectly in sync by the updateListener
+        base.content = this.content;
         return base;
     }
 }

@@ -4,6 +4,7 @@
 import { EventBus } from '../event-bus';
 import { IDEStore } from '../store';
 import { IDEPanel } from '../types';
+import { StorageProviderRegistry } from '../storage/registry';
 
 export class FileExplorerPanel implements IDEPanel {
     private container!: HTMLElement;
@@ -11,11 +12,13 @@ export class FileExplorerPanel implements IDEPanel {
     private dropIndicatorEl!: HTMLElement;
     private bus: EventBus;
     private store: IDEStore;
+    private registry: StorageProviderRegistry;
     private unsubs: Array<() => void> = [];
 
-    constructor(bus: EventBus, store: IDEStore) {
+    constructor(bus: EventBus, store: IDEStore, registry: StorageProviderRegistry) {
         this.bus = bus;
         this.store = store;
+        this.registry = registry;
     }
 
     mount(container: HTMLElement): void {
@@ -29,7 +32,15 @@ export class FileExplorerPanel implements IDEPanel {
         this.container.innerHTML = `
             <!-- Panel Header -->
             <div class="px-3 py-2 border-b border-slate-200 bg-slate-50 font-semibold text-xs text-slate-500 uppercase tracking-wider flex justify-between items-center shrink-0 select-none">
-                <span>Files</span>
+                <div class="flex items-center gap-2">
+                    <span>Files</span>
+                    <button id="lhs-btn-cloud" class="text-blue-500 hover:text-blue-600 transition-colors p-0.5 rounded hidden" title="Connected to Cloud">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                    </button>
+                    <button id="lhs-btn-cloud-connect" class="text-slate-400 hover:text-blue-500 transition-colors p-0.5 rounded" title="Connect to Cloud Drive">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                    </button>
+                </div>
                 <div class="flex gap-1">
                     <button id="lhs-btn-new" class="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200" title="New File">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
@@ -63,6 +74,56 @@ export class FileExplorerPanel implements IDEPanel {
         this.container.querySelector('#lhs-btn-upload')?.addEventListener('click', () => {
             fileInput?.click();
         });
+
+        // Cloud Connection Logic (Dropdown for multiple providers)
+        const connectBtn = this.container.querySelector('#lhs-btn-cloud-connect');
+        connectBtn?.addEventListener('click', (e) => {
+            const providers = this.registry.getAllProviders();
+            if (providers.length === 0) {
+                alert("No Cloud Storage Providers registered.");
+                return;
+            }
+
+            // Remove existing dropdown if any
+            const existing = document.getElementById('cloud-provider-dropdown');
+            if (existing) existing.remove();
+
+            // Create dropdown menu
+            const dropdown = document.createElement('div');
+            dropdown.id = 'cloud-provider-dropdown';
+            dropdown.className = 'absolute top-10 left-3 bg-white border border-slate-200 rounded shadow-lg py-1 z-50 min-w-[150px]';
+            
+            providers.forEach(provider => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors';
+                btn.innerText = `Connect ${provider.name}`;
+                btn.onclick = async () => {
+                    dropdown.remove();
+                    try {
+                        const success = await provider.authenticate();
+                        if (success) {
+                            this.store.setStorageProvider(provider);
+                            await this.store.loadFilesFromCloud();
+                        }
+                    } catch (err) {
+                        alert(`Failed to connect to ${provider.name}.`);
+                        console.error(err);
+                    }
+                };
+                dropdown.appendChild(btn);
+            });
+
+            // Close when clicking outside
+            const closeDropdown = (evt: MouseEvent) => {
+                if (!dropdown.contains(evt.target as Node) && evt.target !== connectBtn) {
+                    dropdown.remove();
+                    document.removeEventListener('click', closeDropdown);
+                }
+            };
+            document.addEventListener('click', closeDropdown);
+
+            this.container.appendChild(dropdown);
+        });
     }
 
     private bindEvents(): void {
@@ -70,7 +131,10 @@ export class FileExplorerPanel implements IDEPanel {
         this.unsubs.push(
             this.bus.on('files:changed', () => this.renderFileList()),
             this.bus.on('file:selected', () => this.renderFileList()),
-            this.bus.on('file:selection-toggled', () => this.renderFileList())
+            this.bus.on('file:selection-toggled', () => this.renderFileList()),
+            this.bus.on('provider:changed', () => this.updateCloudIcon()),
+            this.bus.on('sync:start', () => this.renderFileList()),
+            this.bus.on('sync:complete', () => this.renderFileList())
         );
 
         // Drag & Drop
@@ -111,12 +175,29 @@ export class FileExplorerPanel implements IDEPanel {
         }
     }
 
+    private updateCloudIcon(): void {
+        const cloudBtn = this.container.querySelector('#lhs-btn-cloud') as HTMLElement;
+        const connectBtn = this.container.querySelector('#lhs-btn-cloud-connect') as HTMLElement;
+        
+        // Use type assertion since IDEStore exposes it
+        const provider = (this.store.getState() as any).activeProvider;
+        if (provider && provider.isAuthenticated()) {
+            cloudBtn.classList.remove('hidden');
+            connectBtn.classList.add('hidden');
+        } else {
+            cloudBtn.classList.add('hidden');
+            connectBtn.classList.remove('hidden');
+        }
+    }
+
     private renderFileList(): void {
         if (!this.fileListEl) return;
         this.fileListEl.innerHTML = '';
 
         const files = this.store.files;
         const activeName = this.store.activeFileName;
+        const state = this.store.getState() as any;
+        const isSyncing = state.isSyncing;
 
         Object.keys(files).forEach(fileName => {
             const isActive = fileName === activeName;
@@ -126,11 +207,13 @@ export class FileExplorerPanel implements IDEPanel {
                 isActive ? 'bg-blue-100 text-blue-700 font-medium' : 'hover:bg-slate-100 text-slate-600'
             }`;
 
+            const syncIcon = (isActive && isSyncing) ? 
+                `<svg class="w-4 h-4 shrink-0 text-blue-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>` : 
+                `<svg class="w-4 h-4 shrink-0 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
+
             btn.innerHTML = `
                 <input type="checkbox" class="file-select-cb mr-1 rounded" ${isSelected ? 'checked' : ''}>
-                <svg class="w-4 h-4 shrink-0 ${isActive ? 'text-blue-500' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
+                ${syncIcon}
                 <span class="flex-1 truncate cursor-text" title="Double click to rename">${fileName}</span>
             `;
 

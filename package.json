@@ -13,8 +13,10 @@
     "postinstall": "cp node_modules/lms-widget-manager/dist/lms-widget-manager.iife.js public/ || echo 'Ensure lms-widget-manager is built'"
   },
   "dependencies": {
+    "@azure/msal-browser": "^5.22.0",
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/language": "^6.12.4",
     "@codemirror/state": "^6.7.5",

@@ -3,6 +3,7 @@
 
 import { EventBus } from './event-bus';
 import { IDEState, IDEOptions, ViewMode } from './types';
+import { StorageProvider } from './storage/types';
 
 const DEFAULT_NOTEBOOK_CONTENT = `# %% [markdown]
 """
@@ -44,7 +45,9 @@ export class IDEStore {
             viewMode: 'visual',
             options: { ...DEFAULT_OPTIONS },
             selectedCellIndices: [],
-            selectedFiles: new Set<string>()
+            selectedFiles: new Set<string>(),
+            activeProvider: null,
+            isSyncing: false
         };
     }
 
@@ -222,6 +225,59 @@ export class IDEStore {
         } else {
             this.state.selectedFiles.add(fileName);
             this.bus.emit('file:selection-toggled', { fileName, isSelected: true });
+        }
+    }
+
+    // --- STORAGE PROVIDER METHODS ---
+    
+    setStorageProvider(provider: StorageProvider | null): void {
+        this.state.activeProvider = provider;
+        this.bus.emit('provider:changed', { provider });
+    }
+
+    async syncFileToCloud(fileName: string): Promise<boolean> {
+        const provider = this.state.activeProvider;
+        if (!provider || !provider.isAuthenticated()) return false;
+        
+        const content = this.state.files[fileName];
+        if (content === undefined) return false;
+
+        this.state.isSyncing = true;
+        this.bus.emit('sync:start', undefined as void);
+        
+        try {
+            // Very naive save for now; assumes fileName is used as fileId
+            await provider.saveFile(fileName, content);
+            this.state.isSyncing = false;
+            this.bus.emit('sync:complete', undefined as void);
+            return true;
+        } catch (error: any) {
+            this.state.isSyncing = false;
+            this.bus.emit('sync:error', { error });
+            return false;
+        }
+    }
+
+    async loadFilesFromCloud(): Promise<void> {
+        const provider = this.state.activeProvider;
+        if (!provider || !provider.isAuthenticated()) return;
+        
+        this.state.isSyncing = true;
+        this.bus.emit('sync:start', undefined as void);
+        
+        try {
+            const files = await provider.listFiles();
+            for (const file of files) {
+                const content = await provider.readFile(file.id);
+                this.state.files[file.name] = content;
+            }
+            // Update active file if needed or trigger render
+            this.bus.emit('files:changed', { files: this.state.files, activeFileName: this.state.activeFileName });
+            this.state.isSyncing = false;
+            this.bus.emit('sync:complete', undefined as void);
+        } catch (error: any) {
+            this.state.isSyncing = false;
+            this.bus.emit('sync:error', { error });
         }
     }
 

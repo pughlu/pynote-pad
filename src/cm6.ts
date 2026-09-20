@@ -2,6 +2,7 @@ import { basicSetup } from "codemirror";
 import { EditorState, Extension, Compartment } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { python } from "@codemirror/lang-python";
+import { markdown } from "@codemirror/lang-markdown";
 import { indentUnit } from "@codemirror/language";
 import { indentMore, indentLess } from "@codemirror/commands";
 import { search, openSearchPanel } from "@codemirror/search";
@@ -84,6 +85,7 @@ export {
   Compartment,
   basicSetup,
   python,
+  markdown,
   keymap,
   indentMore,
   indentLess,
@@ -103,6 +105,7 @@ if (typeof window !== 'undefined') {
     Compartment,
     basicSetup,
     python,
+    markdown,
     language,
     state,
     view,
