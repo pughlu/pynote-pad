@@ -3,7 +3,8 @@
 
 import { StorageProvider } from './types';
 
-const CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; // TODO: Replace with actual Client ID
+// const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const CLIENT_ID = '686577450644-f1dko6vurgqutb2q6s3tlecdpkfsn3qp.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
 export class GoogleDriveProvider implements StorageProvider {
@@ -37,7 +38,7 @@ export class GoogleDriveProvider implements StorageProvider {
     async authenticate(): Promise<boolean> {
         try {
             await this.loadGsiScript();
-            
+
             return new Promise((resolve) => {
                 this.tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
                     client_id: CLIENT_ID,
@@ -70,12 +71,12 @@ export class GoogleDriveProvider implements StorageProvider {
 
     private async fetchDrive(url: string, options: RequestInit = {}): Promise<Response> {
         if (!this.accessToken) throw new Error("Not authenticated");
-        
+
         const headers = {
             ...options.headers,
             'Authorization': `Bearer ${this.accessToken}`
         };
-        
+
         return fetch(url, { ...options, headers });
     }
 
@@ -84,10 +85,10 @@ export class GoogleDriveProvider implements StorageProvider {
 
         const url = `https://www.googleapis.com/drive/v3/files?q=name='PyNoteStudio' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)`;
         const response = await this.fetchDrive(url);
-        
+
         if (!response.ok) throw new Error(`Failed to query folder: ${response.statusText}`);
         const data = await response.json();
-        
+
         if (data.files && data.files.length > 0) {
             this.folderIdCache = data.files[0].id;
             return this.folderIdCache!;
@@ -100,7 +101,7 @@ export class GoogleDriveProvider implements StorageProvider {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: 'PyNoteStudio', mimeType: 'application/vnd.google-apps.folder' })
         });
-        
+
         if (!createResponse.ok) throw new Error(`Failed to create folder: ${createResponse.statusText}`);
         const createData = await createResponse.json();
         this.folderIdCache = createData.id;
@@ -111,10 +112,10 @@ export class GoogleDriveProvider implements StorageProvider {
         const folderId = await this.getOrCreateStudioFolder();
         const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and trashed=false&fields=files(id,name,modifiedTime)`;
         const response = await this.fetchDrive(url);
-        
+
         if (!response.ok) throw new Error(`Failed to list files: ${response.statusText}`);
         const data = await response.json();
-        
+
         return (data.files || []).map((file: any) => ({
             id: file.id,
             name: file.name,
@@ -125,7 +126,7 @@ export class GoogleDriveProvider implements StorageProvider {
     async readFile(fileId: string): Promise<string> {
         const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
         const response = await this.fetchDrive(url);
-        
+
         if (!response.ok) throw new Error(`Failed to read file: ${response.statusText}`);
         return await response.text();
     }
@@ -147,9 +148,9 @@ export class GoogleDriveProvider implements StorageProvider {
     async createFile(name: string, content: string): Promise<{ id: string; name: string }> {
         // Google Drive requires a multipart upload to set metadata (name) and content simultaneously,
         // or a two-step process. We'll do a simple POST for metadata, then PATCH content.
-        
+
         const folderId = await this.getOrCreateStudioFolder();
-        
+
         // 1. Create file metadata
         const metaUrl = 'https://www.googleapis.com/drive/v3/files';
         const metaResponse = await this.fetchDrive(metaUrl, {
@@ -157,13 +158,13 @@ export class GoogleDriveProvider implements StorageProvider {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, mimeType: 'text/plain', parents: [folderId] })
         });
-        
+
         if (!metaResponse.ok) throw new Error(`Failed to create file metadata: ${metaResponse.statusText}`);
         const metaData = await metaResponse.json();
-        
+
         // 2. Upload content
         await this.saveFile(metaData.id, content);
-        
+
         return { id: metaData.id, name: metaData.name };
     }
 
