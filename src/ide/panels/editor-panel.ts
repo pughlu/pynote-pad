@@ -282,9 +282,9 @@ export class EditorPanel implements IDEPanel {
                 coreOptions.widgetId = activeFile;
                 (window as any).notebookCore = new (window as any).NotebookCore('pynote-mount-point', coreOptions);
                 
-                const ydoc = this.store.getActiveYDoc();
-                if (ydoc) {
-                    (window as any).notebookCore.loadYDoc(ydoc);
+                const doc = this.store.collabDocs[activeFile];
+                if (doc) {
+                    (window as any).notebookCore.loadCollabDoc(doc);
                 }
                 
                 // Keep config extraction using the legacy deserializer for now

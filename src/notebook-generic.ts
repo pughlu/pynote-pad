@@ -676,8 +676,8 @@ class NotebookCore {
     kernel!: any;
     sortable!: any;
     selectedIndices!: number[];
-    ydoc!: any;
-    yCells!: any;
+    collabDoc!: any; // ICollaborativeDocument
+    collabArray!: any; // ICollaborativeArray
 
     constructor(containerId: string, options: any = {}) {
         this.container = document.getElementById(containerId);
@@ -858,11 +858,11 @@ class NotebookCore {
                     if (!confirm("Are you sure you want to delete this cell?")) return;
                 }
 
-                if (this.yCells) {
+                if (this.collabArray) {
                     const idx = Array.from(this.container.children).indexOf(el);
                     if (idx > -1) {
-                        this.ydoc.transact(() => {
-                            this.yCells.delete(idx, 1);
+                        this.collabDoc.transact(() => {
+                            this.collabArray.delete(idx, 1);
                         });
                     }
                 } else {
@@ -878,7 +878,7 @@ class NotebookCore {
             const el = (e.target as any);
             const idx = Array.from(this.container.children).indexOf(el);
             
-            if (this.yCells) {
+            if (this.collabArray) {
                 this.addCell('code', idx + 1);
             } else {
                 const newCell = this.createCellElement({ type: 'code', content: '' });
@@ -897,18 +897,18 @@ class NotebookCore {
             const newType = ((e as any).detail as any).newType;
             const content = ((e as any).detail as any).content;
             
-            if (this.yCells) {
+            if (this.collabArray) {
                 const idx = Array.from(this.container.children).indexOf(oldEl);
                 if (idx > -1) {
-                    this.ydoc.transact(() => {
-                        const { Y } = (window as any).cm6 || {};
-                        if (!Y) return;
-                        const yMap = new Y.Map();
+                    this.collabDoc.transact(() => {
+                        const collabProvider = (window as any).collabProvider;
+                        if (!collabProvider) return;
+                        const yMap = collabProvider.createMap();
                         yMap.set('type', newType);
-                        yMap.set('content', new Y.Text(content));
+                        yMap.set('content', collabProvider.createText(content));
                         yMap.set('isEditing', newType === 'markdown');
-                        this.yCells.delete(idx, 1);
-                        this.yCells.insert(idx, [yMap]);
+                        this.collabArray.delete(idx, 1);
+                        this.collabArray.insert(idx, [yMap]);
                     });
                 }
             } else {
@@ -974,50 +974,49 @@ class NotebookCore {
         });
     }
 
-    loadYDoc(ydoc: any) {
-        this.ydoc = ydoc;
-        this.yCells = ydoc.getArray('cells');
-        
-        // Merge file-level config from the first array item if it's a config cell, or pass it via EditorPanel.
-        // For now we rely on EditorPanel to parse global config.
-
+    loadCollabDoc(collabDoc: any) {
+        this.collabDoc = collabDoc;
+        this.collabArray = collabDoc.getArray('cells');
         this.container.innerHTML = '';
-        this.yCells.forEach((yMap: any) => {
-            this.container.appendChild(this.createCellFromYMap(yMap));
+        
+        // Initial render
+        const frag = document.createDocumentFragment();
+        this.collabArray.forEach((yMap: any) => {
+            frag.appendChild(this.createCellFromCollabMap(yMap));
         });
+        this.container.appendChild(frag);
 
-        this.yCells.observe((event: any) => {
-            let index = 0;
+        this.collabArray.getRaw().observe((event: any) => {
             event.changes.delta.forEach((change: any) => {
                 if (change.retain) {
-                    index += change.retain;
+                    event.index += change.retain;
+                } else if (change.insert) {
+                    change.insert.forEach((yMap: any, i: number) => {
+                        const adapterMap = this.collabArray.get(event.index + i);
+                        const newCell = this.createCellFromCollabMap(adapterMap);
+                        if (this.container.children.length === 0 || (event.index + i) >= this.container.children.length) {
+                            this.container.appendChild(newCell);
+                        } else {
+                            this.container.insertBefore(newCell, this.container.children[event.index + i]);
+                        }
+                    });
+                    event.index += change.insert.length;
                 } else if (change.delete) {
                     for (let i = 0; i < change.delete; i++) {
-                        if (this.container.children[index]) {
-                            this.container.removeChild(this.container.children[index]);
-                        }
+                        const cellToRemove = this.container.children[event.index];
+                        if (cellToRemove) cellToRemove.remove();
                     }
-                } else if (change.insert) {
-                    change.insert.forEach((yMap: any) => {
-                        const cell = this.createCellFromYMap(yMap);
-                        if (index < this.container.children.length) {
-                            this.container.insertBefore(cell, this.container.children[index]);
-                        } else {
-                            this.container.appendChild(cell);
-                        }
-                        index++;
-                    });
                 }
             });
-            this.applyMaxWidth();
+            this.updateQuestionModeVisibility();
         });
 
         this.applyMaxWidth();
-        this.setupDragAndDrop();
+        setTimeout(() => this.setupDragAndDrop(), 0);
         this.updateQuestionModeVisibility();
     }
 
-    createCellFromYMap(yMap: any) {
+    createCellFromCollabMap(yMap: any) {
         let tagName = 'notebook-text-cell';
         const type = yMap.get('type') || 'text';
         if (type === 'markdown') tagName = 'notebook-markdown-cell';
@@ -1026,6 +1025,7 @@ class NotebookCore {
         const cell = document.createElement(tagName) as any;
         cell.yMap = yMap;
         cell.yText = yMap.get('content');
+        cell.content = cell.yText ? cell.yText.toString() : '';
         
         cell.setAttribute('cell-id', Math.random().toString(36).substring(2, 9));
         cell.setAttribute('cell-type', type);
@@ -1036,7 +1036,7 @@ class NotebookCore {
         if (yMap.get('isDeletable') === false) cell.setAttribute('is-deletable', 'false');
         if (yMap.get('isMoveable') === false) cell.setAttribute('is-moveable', 'false');
         
-        const meta = {};
+        const meta: any = {};
         for (const [key, value] of yMap.entries()) {
             if (key !== 'content' && key !== 'type' && key !== 'isLocked' && key !== 'isHidden' && key !== 'isEditable' && key !== 'isDeletable' && key !== 'isMoveable') {
                 meta[key] = value;
@@ -1112,25 +1112,22 @@ class NotebookCore {
 
     addCell(type = 'code', index = 0, preventFocus = false) {
         if (this.isReadOnly || this.options.disableInsertAll) return;
-        if (this.yCells) {
-            // Yjs Flow
-            // Add a new Y.Map to the array. The observer will handle the DOM insertion.
-            const { Y } = (window as any).cm6 || {};
-            if (!Y) return;
-            const yMap = new Y.Map();
+        if (this.collabArray) {
+            const collabProvider = (window as any).collabProvider;
+            if (!collabProvider) return;
+            const yMap = collabProvider.createMap();
             yMap.set('type', type);
-            yMap.set('content', new Y.Text(''));
+            yMap.set('content', collabProvider.createText(''));
             yMap.set('isEditing', type === 'markdown');
             
-            this.ydoc.transact(() => {
-                const insertIndex = index !== undefined && index >= 0 ? index : this.yCells.length;
-                this.yCells.insert(insertIndex, [yMap]);
+            this.collabDoc.transact(() => {
+                const insertIndex = index !== undefined && index >= 0 ? index : this.collabArray.length;
+                this.collabArray.insert(insertIndex, [yMap]);
             });
             
-            // Focus will need to be handled carefully in Yjs, ideally via an event or just after a microtask.
             if (!preventFocus) {
                 setTimeout(() => {
-                    const insertIndex = index !== undefined && index >= 0 ? index : this.yCells.length - 1;
+                    const insertIndex = index !== undefined && index >= 0 ? index : this.collabArray.length - 1;
                     const cell = this.container.children[insertIndex];
                     if (cell && (cell as any).focusCell) (cell as any).focusCell();
                 }, 50);
@@ -1239,10 +1236,21 @@ class NotebookCore {
                 }
                 return true;
             },
-            onEnd: () => {
-                const cells = Array.from(this.container.children);
-                cells.forEach(cell => { if ((cell as any).refresh) (cell as any).refresh(); });
-                this.syncToServer();
+            onEnd: (evt: any) => {
+                const newIndex = evt.newIndex;
+                const oldIndex = evt.oldIndex;
+                
+                if (this.collabArray && newIndex !== undefined && oldIndex !== undefined && newIndex !== oldIndex) {
+                    this.collabDoc.transact(() => {
+                        const item = this.collabArray.get(oldIndex);
+                        this.collabArray.delete(oldIndex, 1);
+                        this.collabArray.insert(newIndex, [item]);
+                    });
+                } else {
+                    const cells = Array.from(this.container.children);
+                    cells.forEach(cell => { if ((cell as any).refresh) (cell as any).refresh(); });
+                    this.syncToServer();
+                }
                 this.updateQuestionModeVisibility();
             },
         });
@@ -1284,22 +1292,48 @@ class NotebookCore {
             const firstHalf = content.substring(0, cursorStart);
             const secondHalf = content.substring(cursorStart);
 
-            // Update current cell
-            if (el.tagName.toLowerCase() === 'notebook-code-cell' && el.editorView) {
-                el.editorView.dispatch({ changes: { from: 0, to: content.length, insert: firstHalf } });
-            } else {
-                el.content = firstHalf;
-                if (el.textarea) el.textarea.value = firstHalf;
-                if (el.markdownContent && typeof (window as any).marked !== 'undefined') {
-                    el.markdownContent.innerHTML = (window as any).marked.parse(firstHalf);
-                }
-            }
+            if (this.collabArray) {
+                const idx = Array.from(this.container.children).indexOf(el);
+                if (idx > -1) {
+                    this.collabDoc.transact(() => {
+                        const collabProvider = (window as any).collabProvider;
+                        
+                        // Mutate current text
+                        const collabText = (el as any).yText;
+                        if (collabText) {
+                            const rawText = collabText.getRaw();
+                            if (rawText.delete) {
+                                rawText.delete(cursorStart, content.length - cursorStart);
+                            }
+                        }
 
-            // Create new cell
-            const newCell = this.createCellElement({ type: el.cellType, content: secondHalf, isEditing: el.cellType === 'markdown' });
-            this.container.insertBefore(newCell, el.nextSibling);
-            this.syncToServer();
-            setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 100);
+                        // Create new cell map
+                        const yMap = collabProvider.createMap();
+                        yMap.set('type', el.cellType);
+                        yMap.set('content', collabProvider.createText(secondHalf));
+                        yMap.set('isEditing', el.cellType === 'markdown');
+                        
+                        this.collabArray.insert(idx + 1, [yMap]);
+                    });
+                }
+            } else {
+                // Update current cell
+                if (el.tagName.toLowerCase() === 'notebook-code-cell' && el.editorView) {
+                    el.editorView.dispatch({ changes: { from: 0, to: content.length, insert: firstHalf } });
+                } else {
+                    el.content = firstHalf;
+                    if (el.textarea) el.textarea.value = firstHalf;
+                    if (el.markdownContent && typeof (window as any).marked !== 'undefined') {
+                        el.markdownContent.innerHTML = (window as any).marked.parse(firstHalf);
+                    }
+                }
+
+                // Create new cell
+                const newCell = this.createCellElement({ type: el.cellType, content: secondHalf, isEditing: el.cellType === 'markdown' });
+                this.container.insertBefore(newCell, el.nextSibling);
+                this.syncToServer();
+                setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 100);
+            }
         }
     }
 
@@ -1329,21 +1363,34 @@ class NotebookCore {
             nextContent = nextEl.content || '';
         }
 
-        const mergedContent = currentContent + '\\n' + nextContent;
+        const mergedContent = currentContent + '\n' + nextContent;
 
-        // Update current cell
-        if (el.tagName.toLowerCase() === 'notebook-code-cell' && el.editorView) {
-            el.editorView.dispatch({ changes: { from: 0, to: currentContent.length, insert: mergedContent } });
+        if (this.collabArray) {
+            this.collabDoc.transact(() => {
+                const collabText = (el as any).yText;
+                if (collabText) {
+                    const rawText = collabText.getRaw();
+                    if (rawText.insert) {
+                        rawText.insert(currentContent.length, '\n' + nextContent);
+                    }
+                }
+                this.collabArray.delete(index + 1, 1);
+            });
         } else {
-            el.content = mergedContent;
-            if (el.textarea) el.textarea.value = mergedContent;
-            if (el.markdownContent && typeof (window as any).marked !== 'undefined') {
-                el.markdownContent.innerHTML = (window as any).marked.parse(mergedContent);
+            // Update current cell
+            if (el.tagName.toLowerCase() === 'notebook-code-cell' && el.editorView) {
+                el.editorView.dispatch({ changes: { from: 0, to: currentContent.length, insert: mergedContent } });
+            } else {
+                el.content = mergedContent;
+                if (el.textarea) el.textarea.value = mergedContent;
+                if (el.markdownContent && typeof (window as any).marked !== 'undefined') {
+                    el.markdownContent.innerHTML = (window as any).marked.parse(mergedContent);
+                }
             }
-        }
 
-        nextEl.remove();
-        this.syncToServer();
+            nextEl.remove();
+            this.syncToServer();
+        }
     }
 
     duplicateCell() {
@@ -1360,10 +1407,28 @@ class NotebookCore {
             data.content = el.editorView.state.doc.toString();
         }
 
-        const newCell = this.createCellElement(data);
-        this.container.insertBefore(newCell, el.nextSibling);
-        this.syncToServer();
-        setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 100);
+        if (this.collabArray) {
+            const idx = Array.from(this.container.children).indexOf(el);
+            if (idx > -1) {
+                this.collabDoc.transact(() => {
+                    const collabProvider = (window as any).collabProvider;
+                    const yMap = collabProvider.createMap();
+                    for (const [key, val] of Object.entries(data)) {
+                        if (key === 'content') {
+                            yMap.set('content', collabProvider.createText(val as string));
+                        } else {
+                            yMap.set(key, val);
+                        }
+                    }
+                    this.collabArray.insert(idx + 1, [yMap]);
+                });
+            }
+        } else {
+            const newCell = this.createCellElement(data);
+            this.container.insertBefore(newCell, el.nextSibling);
+            this.syncToServer();
+            setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 100);
+        }
     }
 
     deleteSelectedCell() {
@@ -1373,9 +1438,18 @@ class NotebookCore {
 
         const { index, el } = selected;
         if (!this.isReadOnly && !el.effectiveIsLocked && el.effectiveIsDeletable !== false) {
-            el.remove();
+            if (this.collabArray) {
+                const idx = Array.from(this.container.children).indexOf(el);
+                if (idx > -1) {
+                    this.collabDoc.transact(() => {
+                        this.collabArray.delete(idx, 1);
+                    });
+                }
+            } else {
+                el.remove();
+                this.syncToServer();
+            }
             this.selectedIndices = [];
-            this.syncToServer();
         }
     }
 
@@ -1400,16 +1474,38 @@ class NotebookCore {
         try {
             const data = JSON.parse(copiedData);
             data.id = Math.random().toString(36).substring(2, 9); // Assign new ID
-            const newCell = this.createCellElement(data);
-
+            
             const selected = this.getSelectedCell();
-            if (selected) {
-                this.container.insertBefore(newCell, selected.el.nextSibling);
+            
+            if (this.collabArray) {
+                const collabProvider = (window as any).collabProvider;
+                const yMap = collabProvider.createMap();
+                for (const [key, val] of Object.entries(data)) {
+                    if (key === 'content') {
+                        yMap.set('content', collabProvider.createText(val as string));
+                    } else {
+                        yMap.set(key, val);
+                    }
+                }
+                
+                this.collabDoc.transact(() => {
+                    if (selected) {
+                        const idx = Array.from(this.container.children).indexOf(selected.el);
+                        this.collabArray.insert(idx + 1, [yMap]);
+                    } else {
+                        this.collabArray.push([yMap]);
+                    }
+                });
             } else {
-                this.container.appendChild(newCell);
+                const newCell = this.createCellElement(data);
+                if (selected) {
+                    this.container.insertBefore(newCell, selected.el.nextSibling);
+                } else {
+                    this.container.appendChild(newCell);
+                }
+                this.syncToServer();
+                setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 100);
             }
-            this.syncToServer();
-            setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 100);
         } catch (e) {
             console.error("Paste Error:", e);
         }

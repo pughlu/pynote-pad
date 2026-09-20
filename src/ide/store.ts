@@ -4,8 +4,7 @@
 import { EventBus } from './event-bus';
 import { IDEState, IDEOptions, ViewMode } from './types';
 import { StorageProvider } from './storage/types';
-import * as Y from 'yjs';
-import { stringToYDoc, ydocToString } from './yjs-utils';
+import { ICollaborationProvider, ICollaborativeDocument } from './collaboration/types';
 
 const DEFAULT_NOTEBOOK_CONTENT = `# %% [markdown]
 """
@@ -33,18 +32,22 @@ const DEFAULT_OPTIONS: IDEOptions = {
 export class IDEStore {
     private state: IDEState;
     private bus: EventBus;
-    private ydocs: Record<string, Y.Doc> = {};
+    public collabDocs: Record<string, ICollaborativeDocument> = {};
+    public collabProvider: ICollaborationProvider | null = null;
 
-    constructor(bus: EventBus, initialFiles?: Record<string, string>, initialActiveFile?: string) {
+    constructor(bus: EventBus, initialFiles?: Record<string, string>, initialActiveFile?: string, collabProvider?: ICollaborationProvider | null) {
         this.bus = bus;
+        this.collabProvider = collabProvider || null;
         const files = initialFiles || {
             'untitled': DEFAULT_NOTEBOOK_CONTENT
         };
         const activeFileName = initialActiveFile && files[initialActiveFile] ? initialActiveFile : Object.keys(files)[0] || 'untitled';
 
-        // Initialize Y.Docs
+        // Initialize Collab Docs
         for (const [fileName, content] of Object.entries(files)) {
-            this.ydocs[fileName] = stringToYDoc(content);
+            if (this.collabProvider) {
+                this.collabDocs[fileName] = this.collabProvider.createDocumentFromString(content);
+            }
         }
 
         this.state = {
@@ -71,13 +74,11 @@ export class IDEStore {
         return this.state.activeFileName;
     }
 
-    getActiveYDoc(): Y.Doc | null {
-        return this.ydocs[this.state.activeFileName] || null;
-    }
-
     get activeContent(): string {
-        const ydoc = this.getActiveYDoc();
-        return ydoc ? ydocToString(ydoc, this.state.options) : '';
+        const doc = this.collabDocs[this.state.activeFileName];
+        return (doc && this.collabProvider) 
+            ? this.collabProvider.serializeDocument(doc, this.state.options) 
+            : this.state.files[this.state.activeFileName] || '';
     }
 
     get viewMode(): ViewMode {
@@ -116,11 +117,10 @@ export class IDEStore {
     updateContent(content: string, fileName?: string): void {
         const target = fileName || this.state.activeFileName;
         
-        // Rebuild the Y.Doc from the string
-        const oldDoc = this.ydocs[target];
-        if (oldDoc) oldDoc.destroy();
-        
-        this.ydocs[target] = stringToYDoc(content);
+        delete this.collabDocs[target];
+        if (this.collabProvider) {
+            this.collabDocs[target] = this.collabProvider.createDocumentFromString(content);
+        }
         this.state.files[target] = content; // Keep sync for legacy
         
         this.bus.emit('file:content-updated', { fileName: target, content });
@@ -142,7 +142,9 @@ export class IDEStore {
 
         const newContent = content !== undefined ? content : `# %% [markdown]\n"""\n### New Notebook\n"""\n\n# %% [code]\n`;
         this.state.files[name] = newContent;
-        this.ydocs[name] = stringToYDoc(newContent);
+        if (this.collabProvider) {
+            this.collabDocs[name] = this.collabProvider.createDocumentFromString(newContent);
+        }
         this.state.activeFileName = name;
         this.state.selectedCellIndices = [];
 
@@ -159,9 +161,8 @@ export class IDEStore {
     closeFile(fileName: string): void {
         if (!this.state.files[fileName]) return;
 
-        if (this.ydocs[fileName]) {
-            this.ydocs[fileName].destroy();
-            delete this.ydocs[fileName];
+        if (this.collabDocs[fileName]) {
+            delete this.collabDocs[fileName];
         }
         delete this.state.files[fileName];
         this.state.selectedFiles.delete(fileName);
@@ -190,9 +191,9 @@ export class IDEStore {
         this.state.files[newName] = this.state.files[oldName];
         delete this.state.files[oldName];
 
-        if (this.ydocs[oldName]) {
-            this.ydocs[newName] = this.ydocs[oldName];
-            delete this.ydocs[oldName];
+        if (this.collabDocs[oldName]) {
+            this.collabDocs[newName] = this.collabDocs[oldName];
+            delete this.collabDocs[oldName];
         }
 
         if (this.state.selectedFiles.has(oldName)) {
@@ -258,6 +259,18 @@ export class IDEStore {
 
     // --- STORAGE PROVIDER METHODS ---
     
+    setCollaborationProvider(provider: ICollaborationProvider | null): void {
+        this.collabProvider = provider;
+        // Rebuild docs for all files
+        for (const file of Object.keys(this.state.files)) {
+            if (provider) {
+                this.collabDocs[file] = provider.createDocumentFromString(this.state.files[file]);
+            } else {
+                delete this.collabDocs[file];
+            }
+        }
+    }
+
     setStorageProvider(provider: StorageProvider | null): void {
         this.state.activeProvider = provider;
         this.bus.emit('provider:changed', { provider });
@@ -267,8 +280,10 @@ export class IDEStore {
         const provider = this.state.activeProvider;
         if (!provider || !provider.isAuthenticated()) return false;
         
-        const ydoc = this.ydocs[fileName];
-        const content = ydoc ? ydocToString(ydoc, this.state.options) : this.state.files[fileName];
+        const doc = this.collabDocs[fileName];
+        const content = (doc && this.collabProvider) 
+            ? this.collabProvider.serializeDocument(doc, this.state.options) 
+            : this.state.files[fileName];
         if (content === undefined) return false;
 
         this.state.isSyncing = true;
@@ -299,8 +314,10 @@ export class IDEStore {
             for (const file of files) {
                 const content = await provider.readFile(file.id);
                 this.state.files[file.name] = content;
-                if (this.ydocs[file.name]) this.ydocs[file.name].destroy();
-                this.ydocs[file.name] = stringToYDoc(content);
+                delete this.collabDocs[file.name];
+                if (this.collabProvider) {
+                    this.collabDocs[file.name] = this.collabProvider.createDocumentFromString(content);
+                }
             }
             // Update active file if needed or trigger render
             this.bus.emit('files:changed', { files: this.state.files, activeFileName: this.state.activeFileName });

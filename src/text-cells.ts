@@ -62,8 +62,8 @@ class TextCellElement extends BaseNotebookCell {
                 cm6.EditorState.readOnly.of(this.effectiveIsLocked || !this.effectiveIsEditable)
             ];
 
-            if ((this as any).yText && cm6.yCollab) {
-                customExtensions.push(cm6.yCollab((this as any).yText, null));
+            if ((this as any).yText && (window as any).collabProvider) {
+                customExtensions.push((window as any).collabProvider.createEditorBinding((this as any).yText));
             }
 
             const initialContent = (this as any).yText ? (this as any).yText.toString() : (this.content || '');

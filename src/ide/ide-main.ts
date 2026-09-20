@@ -11,6 +11,7 @@ import { ConfigPanel } from './panels/config-panel';
 import { StorageProviderRegistry } from './storage/registry';
 import { OneDriveProvider } from './storage/onedrive-provider';
 import { GoogleDriveProvider } from './storage/google-drive-provider';
+import { YjsProvider } from './collaboration/yjs-provider';
 
 export class PyNoteIDE {
     public bus: EventBus;
@@ -26,7 +27,11 @@ export class PyNoteIDE {
 
     constructor() {
         this.bus = new EventBus();
-        this.store = new IDEStore(this.bus);
+        // Initialize Collaboration Provider
+        const collabProvider = new YjsProvider();
+        (window as any).collabProvider = collabProvider;
+        
+        this.store = new IDEStore(this.bus, undefined, undefined, collabProvider);
         
         // Initialize Registry and Providers
         this.providerRegistry = new StorageProviderRegistry();

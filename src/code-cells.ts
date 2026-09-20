@@ -180,8 +180,8 @@ class CodeCellElement extends BaseNotebookCell {
                 }));
             }
             
-            if ((this as any).yText && cm6.yCollab) {
-                customExtensions.push(cm6.yCollab((this as any).yText, null));
+            if ((this as any).yText && (window as any).collabProvider) {
+                customExtensions.push((window as any).collabProvider.createEditorBinding((this as any).yText));
             }
 
             this.editorView = cm6.createEditorView(undefined, this.editorWrap);
