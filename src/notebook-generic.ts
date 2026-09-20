@@ -676,6 +676,8 @@ class NotebookCore {
     kernel!: any;
     sortable!: any;
     selectedIndices!: number[];
+    ydoc!: any;
+    yCells!: any;
 
     constructor(containerId: string, options: any = {}) {
         this.container = document.getElementById(containerId);
@@ -856,8 +858,17 @@ class NotebookCore {
                     if (!confirm("Are you sure you want to delete this cell?")) return;
                 }
 
-                el.remove();
-                this.syncToServer();
+                if (this.yCells) {
+                    const idx = Array.from(this.container.children).indexOf(el);
+                    if (idx > -1) {
+                        this.ydoc.transact(() => {
+                            this.yCells.delete(idx, 1);
+                        });
+                    }
+                } else {
+                    el.remove();
+                    this.syncToServer();
+                }
                 this.updateQuestionModeVisibility();
             }
         });
@@ -865,11 +876,17 @@ class NotebookCore {
         this.container.addEventListener('cell-insert-below', (e) => {
             if (this.isReadOnly || this.options.disableInsertAll) return;
             const el = (e.target as any);
-            const newCell = this.createCellElement({ type: 'code', content: '' });
-            el.insertAdjacentElement('afterend', newCell);
-            this.syncToServer();
-            this.updateQuestionModeVisibility();
-            setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 50);
+            const idx = Array.from(this.container.children).indexOf(el);
+            
+            if (this.yCells) {
+                this.addCell('code', idx + 1);
+            } else {
+                const newCell = this.createCellElement({ type: 'code', content: '' });
+                el.insertAdjacentElement('afterend', newCell);
+                this.syncToServer();
+                this.updateQuestionModeVisibility();
+                setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 50);
+            }
         });
 
         this.container.addEventListener('cell-type-changed', (e) => {
@@ -879,13 +896,29 @@ class NotebookCore {
 
             const newType = ((e as any).detail as any).newType;
             const content = ((e as any).detail as any).content;
-
-            const newCell = this.createCellElement({ type: newType, content: content, isEditing: newType === 'markdown' });
-            this.container.insertBefore(newCell, oldEl);
-            oldEl.remove();
-            this.syncToServer();
-            this.updateQuestionModeVisibility();
-            setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 50);
+            
+            if (this.yCells) {
+                const idx = Array.from(this.container.children).indexOf(oldEl);
+                if (idx > -1) {
+                    this.ydoc.transact(() => {
+                        const { Y } = (window as any).cm6 || {};
+                        if (!Y) return;
+                        const yMap = new Y.Map();
+                        yMap.set('type', newType);
+                        yMap.set('content', new Y.Text(content));
+                        yMap.set('isEditing', newType === 'markdown');
+                        this.yCells.delete(idx, 1);
+                        this.yCells.insert(idx, [yMap]);
+                    });
+                }
+            } else {
+                const newCell = this.createCellElement({ type: newType, content: content, isEditing: newType === 'markdown' });
+                this.container.insertBefore(newCell, oldEl);
+                oldEl.remove();
+                this.syncToServer();
+                this.updateQuestionModeVisibility();
+                setTimeout(() => { if ((newCell as any).focusCell) (newCell as any).focusCell(); }, 50);
+            }
         });
     }
 
@@ -941,11 +974,86 @@ class NotebookCore {
         });
     }
 
+    loadYDoc(ydoc: any) {
+        this.ydoc = ydoc;
+        this.yCells = ydoc.getArray('cells');
+        
+        // Merge file-level config from the first array item if it's a config cell, or pass it via EditorPanel.
+        // For now we rely on EditorPanel to parse global config.
+
+        this.container.innerHTML = '';
+        this.yCells.forEach((yMap: any) => {
+            this.container.appendChild(this.createCellFromYMap(yMap));
+        });
+
+        this.yCells.observe((event: any) => {
+            let index = 0;
+            event.changes.delta.forEach((change: any) => {
+                if (change.retain) {
+                    index += change.retain;
+                } else if (change.delete) {
+                    for (let i = 0; i < change.delete; i++) {
+                        if (this.container.children[index]) {
+                            this.container.removeChild(this.container.children[index]);
+                        }
+                    }
+                } else if (change.insert) {
+                    change.insert.forEach((yMap: any) => {
+                        const cell = this.createCellFromYMap(yMap);
+                        if (index < this.container.children.length) {
+                            this.container.insertBefore(cell, this.container.children[index]);
+                        } else {
+                            this.container.appendChild(cell);
+                        }
+                        index++;
+                    });
+                }
+            });
+            this.applyMaxWidth();
+        });
+
+        this.applyMaxWidth();
+        this.setupDragAndDrop();
+        this.updateQuestionModeVisibility();
+    }
+
+    createCellFromYMap(yMap: any) {
+        let tagName = 'notebook-text-cell';
+        const type = yMap.get('type') || 'text';
+        if (type === 'markdown') tagName = 'notebook-markdown-cell';
+        if (type === 'code') tagName = 'notebook-code-cell';
+
+        const cell = document.createElement(tagName) as any;
+        cell.yMap = yMap;
+        cell.yText = yMap.get('content');
+        
+        cell.setAttribute('cell-id', Math.random().toString(36).substring(2, 9));
+        cell.setAttribute('cell-type', type);
+        
+        if (yMap.get('isLocked')) cell.setAttribute('is-locked', '');
+        if (yMap.get('isHidden')) cell.setAttribute('is-hidden', '');
+        if (yMap.get('isEditable') === false) cell.setAttribute('is-editable', 'false');
+        if (yMap.get('isDeletable') === false) cell.setAttribute('is-deletable', 'false');
+        if (yMap.get('isMoveable') === false) cell.setAttribute('is-moveable', 'false');
+        
+        const meta = {};
+        for (const [key, value] of yMap.entries()) {
+            if (key !== 'content' && key !== 'type' && key !== 'isLocked' && key !== 'isHidden' && key !== 'isEditable' && key !== 'isDeletable' && key !== 'isMoveable') {
+                meta[key] = value;
+            }
+        }
+        if (Object.keys(meta).length > 0) {
+            cell.setAttribute('cell-metadata', JSON.stringify(meta));
+            cell.metadata = meta;
+        }
+
+        return cell;
+    }
+
     loadData(cellDataArray: any) {
+        // Legacy loader for standard flatfiles without Yjs
         this.container.innerHTML = '';
 
-        // Merge file-level config into options.
-        // Existing options (widget/HTML config) take precedence over the file config.
         if (cellDataArray.globalConfig) {
             this.options = { ...cellDataArray.globalConfig, ...this.options };
         }
@@ -1002,9 +1110,37 @@ class NotebookCore {
         return cell;
     }
 
-    addCell(type = 'code', index = 0) {
+    addCell(type = 'code', index = 0, preventFocus = false) {
         if (this.isReadOnly || this.options.disableInsertAll) return;
-        const newCell = this.createCellElement({ type: type, content: '', isEditing: type === 'markdown' });
+        if (this.yCells) {
+            // Yjs Flow
+            // Add a new Y.Map to the array. The observer will handle the DOM insertion.
+            const { Y } = (window as any).cm6 || {};
+            if (!Y) return;
+            const yMap = new Y.Map();
+            yMap.set('type', type);
+            yMap.set('content', new Y.Text(''));
+            yMap.set('isEditing', type === 'markdown');
+            
+            this.ydoc.transact(() => {
+                const insertIndex = index !== undefined && index >= 0 ? index : this.yCells.length;
+                this.yCells.insert(insertIndex, [yMap]);
+            });
+            
+            // Focus will need to be handled carefully in Yjs, ideally via an event or just after a microtask.
+            if (!preventFocus) {
+                setTimeout(() => {
+                    const insertIndex = index !== undefined && index >= 0 ? index : this.yCells.length - 1;
+                    const cell = this.container.children[insertIndex];
+                    if (cell && (cell as any).focusCell) (cell as any).focusCell();
+                }, 50);
+            }
+            return;
+        }
+
+        // Legacy DOM flow
+        const data = { type, content: '', isEditing: type === 'markdown' };
+        const newCell = this.createCellElement(data);
 
         if (this.container.children.length === 0 || index >= this.container.children.length) {
             this.container.appendChild(newCell);

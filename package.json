@@ -22,7 +22,9 @@
     "@codemirror/state": "^6.7.5",
     "@codemirror/view": "^6.43.12",
     "codemirror": "^6.0.2",
-    "lms-widget-manager": "github:pughlu/lms-widget-manager"
+    "lms-widget-manager": "github:pughlu/lms-widget-manager",
+    "y-codemirror.next": "^0.3.6",
+    "yjs": "^13.6.32"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

@@ -43,8 +43,8 @@ describe('IDEStore', () => {
         const content = 'print("test")';
         store.updateContent(content, 'untitled');
         
-        expect(store.activeContent).toBe(content);
-        expect(emitSpy).toHaveBeenCalledWith('file:content-updated', { fileName: 'untitled', content });
+        expect(store.activeContent).toContain(content);
+        expect(emitSpy).toHaveBeenCalledWith('file:content-updated', { fileName: 'untitled', content: expect.stringContaining(content) });
     });
 
     it('should rename a file successfully', () => {

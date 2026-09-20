@@ -28,10 +28,13 @@ class CodeCellElement extends BaseNotebookCell {
 
     attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
         super.attributeChangedCallback(name, oldVal, newVal);
-        if (name === 'content' && this.editorView && this.content !== this.editorView.state.doc.toString()) {
-            this.editorView.dispatch({
-                changes: {from: 0, to: this.editorView.state.doc.length, insert: this.content}
-            });
+        if (name === 'content' && this.editorView) {
+            if ((this as any).yText) return; // Yjs is driving the content natively
+            if (this.content !== this.editorView.state.doc.toString()) {
+                this.editorView.dispatch({
+                    changes: {from: 0, to: this.editorView.state.doc.length, insert: this.content}
+                });
+            }
         }
     }
 
@@ -163,7 +166,9 @@ class CodeCellElement extends BaseNotebookCell {
                             const newContent = update.view.state.doc.toString();
                             if (this.content !== newContent) {
                                 this.content = newContent;
-                                this.dispatchAction('cell-content-changed');
+                                if (!(this as any).yText) {
+                                    this.dispatchAction('cell-content-changed');
+                                }
                             }
                             this.setButtonState('default');
                             if (coreConfig.autoClearOutputOnEdit && this.output) {
@@ -174,9 +179,14 @@ class CodeCellElement extends BaseNotebookCell {
                     }
                 }));
             }
+            
+            if ((this as any).yText && cm6.yCollab) {
+                customExtensions.push(cm6.yCollab((this as any).yText, null));
+            }
 
             this.editorView = cm6.createEditorView(undefined, this.editorWrap);
-            const state = cm6.createEditorState(this.content, { extensions: customExtensions });
+            const initialContent = (this as any).yText ? (this as any).yText.toString() : this.content;
+            const state = cm6.createEditorState(initialContent, { extensions: customExtensions });
             this.editorView.setState(state);
 
             if (window.notebookCore && window.notebookCore.kernel) {

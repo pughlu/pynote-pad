@@ -188,8 +188,8 @@ export class EditorPanel implements IDEPanel {
         const targetFile = this.currentRenderedFile || this.store.activeFileName;
 
         if ((sourceMode === 'visual' || sourceMode === 'preview') && (window as any).notebookCore) {
-            const flat = (window as any).notebookCore.serializeToFlat();
-            this.store.updateContent(flat, targetFile);
+            // YDoc auto-syncs to IDEStore. We just ensure we have the latest.
+            // If there's a flush needed, Yjs handles it in memory.
         } else if (sourceMode === 'flatfile') {
             const flat = this.rawTextareaEl.value;
             this.store.updateContent(flat, targetFile);
@@ -281,8 +281,14 @@ export class EditorPanel implements IDEPanel {
                 
                 coreOptions.widgetId = activeFile;
                 (window as any).notebookCore = new (window as any).NotebookCore('pynote-mount-point', coreOptions);
-                const parsedCells = (window as any).notebookCore.deserializeFromFlat(content || '');
-                (window as any).notebookCore.loadData(parsedCells);
+                
+                const ydoc = this.store.getActiveYDoc();
+                if (ydoc) {
+                    (window as any).notebookCore.loadYDoc(ydoc);
+                }
+                
+                // Keep config extraction using the legacy deserializer for now
+                const parsedCells = window.NotebookFormatConverter.deserializeFromFlat(content || '');
 
                 // Sync loaded file's global config back into store if present
                 if (parsedCells.globalConfig) {

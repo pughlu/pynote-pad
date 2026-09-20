@@ -12,14 +12,19 @@ class MarkdownCellElement extends BaseNotebookCell {
     attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
         super.attributeChangedCallback(name, oldVal, newVal);
         if (name === 'content') {
+            if ((this as any).yText) return; // Yjs drives this
             if (this.editorView && this.content !== this.editorView.state.doc.toString()) {
                 this.editorView.dispatch({
-                    changes: { from: 0, to: this.editorView.state.doc.length, insert: this.content }
+                    changes: {from: 0, to: this.editorView.state.doc.length, insert: this.content}
                 });
             }
             if (!this.isEditing && this.viewDiv) {
                 this.renderMarkdown();
             }
+        }
+        if (name === 'is-editing') {
+            this.isEditing = this.hasAttribute('is-editing');
+            this.toggleMode();
         }
     }
 
@@ -79,7 +84,9 @@ class MarkdownCellElement extends BaseNotebookCell {
                 cm6.EditorView.updateListener.of((update: any) => {
                     if (update.docChanged) {
                         this.content = update.state.doc.toString();
-                        this.dispatchAction('cell-content-changed');
+                        if (!(this as any).yText) {
+                            this.dispatchAction('cell-content-changed');
+                        }
                     }
                 }),
                 // Focus listener to track active editor
@@ -91,7 +98,12 @@ class MarkdownCellElement extends BaseNotebookCell {
                 })
             ];
 
-            const state = cm6.createEditorState(this.content || '', { extensions: customExtensions });
+            if ((this as any).yText && cm6.yCollab) {
+                customExtensions.push(cm6.yCollab((this as any).yText, null));
+            }
+
+            const initialContent = (this as any).yText ? (this as any).yText.toString() : (this.content || '');
+            const state = cm6.createEditorState(initialContent, { extensions: customExtensions });
             this.editorView = cm6.createEditorView(state, this.editDiv);
         }
         
@@ -133,9 +145,19 @@ class MarkdownCellElement extends BaseNotebookCell {
     handleActionClick() {
         if (this.effectiveIsLocked || !this.effectiveIsEditable) return;
         this.isEditing = !this.isEditing;
+        
+        if ((this as any).yMap) {
+            (this as any).yMap.set('isEditing', this.isEditing);
+        } else {
+            if (this.isEditing) this.setAttribute('is-editing', '');
+            else this.removeAttribute('is-editing');
+        }
+
         if (!this.isEditing) this.renderMarkdown();
         this.toggleMode();
-        this.dispatchAction('cell-content-changed');
+        if (!(this as any).yText) {
+            this.dispatchAction('cell-content-changed');
+        }
     }
 
     toggleMode() {

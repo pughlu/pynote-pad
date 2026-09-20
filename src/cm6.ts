@@ -8,6 +8,8 @@ import { indentMore, indentLess } from "@codemirror/commands";
 import { search, openSearchPanel } from "@codemirror/search";
 import { autocompletion, acceptCompletion } from "@codemirror/autocomplete";
 import { customVariableCompletions } from "./cm6-autocomplete";
+import { yCollab } from "y-codemirror.next";
+import * as Y from "yjs";
 
 export function getAutocompleteExtensions(mode: string = "custom"): Extension[] {
   const baseKeymap = [
@@ -94,7 +96,9 @@ export {
   openSearchPanel,
   autocompletion,
   acceptCompletion,
-  customVariableCompletions
+  customVariableCompletions,
+  yCollab,
+  Y
 };
 
 // Also expose onto window.cm6 so any external/Moodle scripts or plugins continue to work seamlessly
