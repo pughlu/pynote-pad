@@ -1,35 +1,91 @@
 class TextCellElement extends BaseNotebookCell {
-    textarea!: HTMLTextAreaElement;
+    editorView!: any;
+    editDiv!: HTMLDivElement;
 
-    mountContent(container: HTMLElement) { 
-        this.textarea = document.createElement('textarea');
-        this.textarea.className = 'w-full min-h-[1.75rem] py-2.5 pl-4 pr-10 bg-transparent text-slate-700 text-[14px] font-mono focus:outline-none block border-0 leading-relaxed resize-none overflow-hidden';
-        this.textarea.value = this.content;
-        this.textarea.placeholder = "Type plain text here... (Shift+Enter for new cell)";
-        this.textarea.readOnly = this.isLocked; // Locks completely if instructed by metadata
-        
-        this.textarea.addEventListener('input', () => {
-            this.content = this.textarea.value;
-            autosize.update(this.textarea);
-            this.dispatchAction('cell-content-changed');
-        });
-
-        this.textarea.addEventListener('focus', () => {
-            if (window.notebookCore) window.notebookCore.activeCodeEditor = null;
-        });
-
-        this.textarea.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.shiftKey && e.key === 'Enter') {
-                e.preventDefault();
-                this.dispatchAction('cell-insert-below');
+    attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
+        super.attributeChangedCallback(name, oldVal, newVal);
+        if (name === 'content') {
+            if ((this as any).yText) return; // Yjs drives this
+            if (this.editorView && this.content !== this.editorView.state.doc.toString()) {
+                this.editorView.dispatch({
+                    changes: {from: 0, to: this.editorView.state.doc.length, insert: this.content}
+                });
             }
-        });
-        
-        container.appendChild(this.textarea);
-        setTimeout(() => { autosize(this.textarea); }, 0);
+        }
     }
 
-    refresh() { if(this.textarea) autosize.update(this.textarea); }
-    focusCell() { if(this.textarea && !this.isLocked) this.textarea.focus(); }
+    mountContent(container: HTMLElement) { 
+        this.editDiv = document.createElement('div');
+        this.editDiv.className = 'w-full flex-col flex';
+        
+        container.appendChild(this.editDiv);
+
+        if (typeof window !== 'undefined' && (window as any).cm6) {
+            const cm6 = (window as any).cm6;
+            
+            const customExtensions = [
+                cm6.basicSetup,
+                cm6.EditorView.lineWrapping,
+                // Transparent theme
+                cm6.EditorView.theme({
+                    "&": { backgroundColor: "transparent" },
+                    ".cm-scroller": { fontFamily: "'Fira Code', monospace", fontSize: "14px" },
+                    ".cm-content": { minHeight: "3.25rem", padding: "10px 16px 10px 16px", color: "#334155" },
+                    "&.cm-focused": { outline: "none" },
+                    ".cm-gutters": { display: "none" }
+                }),
+                // Shift+Enter keymap
+                cm6.keymap.of([{
+                    key: "Shift-Enter",
+                    run: () => {
+                        this.dispatchAction('cell-insert-below');
+                        return true;
+                    }
+                }]),
+                // Update listener for sync
+                cm6.EditorView.updateListener.of((update: any) => {
+                    if (update.docChanged) {
+                        this.content = update.state.doc.toString();
+                        if (!(this as any).yText) {
+                            this.dispatchAction('cell-content-changed');
+                        }
+                    }
+                }),
+                // Focus listener to track active editor
+                cm6.EditorView.domEventHandlers({
+                    focus: () => {
+                        if (window.notebookCore) window.notebookCore.activeCodeEditor = null;
+                        return false;
+                    }
+                }),
+                // ReadOnly support
+                cm6.EditorState.readOnly.of(this.effectiveIsLocked || !this.effectiveIsEditable)
+            ];
+
+            if ((this as any).yText && cm6.yCollab) {
+                customExtensions.push(cm6.yCollab((this as any).yText, null));
+            }
+
+            const initialContent = (this as any).yText ? (this as any).yText.toString() : (this.content || '');
+            const state = cm6.createEditorState(initialContent, { extensions: customExtensions });
+            this.editorView = cm6.createEditorView(state, this.editDiv);
+        }
+    }
+
+    refresh() { 
+        this.dispatchAction('cell-height-changed');
+    }
+    
+    focusCell() { 
+        if (this.editorView && !this.effectiveIsLocked && this.effectiveIsEditable) {
+            this.editorView.focus(); 
+        }
+    }
+
+    toJSON() {
+        const base: any = super.toJSON();
+        base.content = this.content;
+        return base;
+    }
 }
 customElements.define('notebook-text-cell', TextCellElement);

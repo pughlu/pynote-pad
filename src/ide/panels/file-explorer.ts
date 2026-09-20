@@ -115,12 +115,15 @@ export class FileExplorerPanel implements IDEPanel {
 
             // Close when clicking outside
             const closeDropdown = (evt: MouseEvent) => {
-                if (!dropdown.contains(evt.target as Node) && evt.target !== connectBtn) {
+                if (!dropdown.contains(evt.target as Node) && (!connectBtn || !connectBtn.contains(evt.target as Node))) {
                     dropdown.remove();
                     document.removeEventListener('click', closeDropdown);
                 }
             };
-            document.addEventListener('click', closeDropdown);
+            // Use setTimeout to avoid closing it on the same click event
+            setTimeout(() => {
+                document.addEventListener('click', closeDropdown);
+            }, 0);
 
             this.container.appendChild(dropdown);
         });
