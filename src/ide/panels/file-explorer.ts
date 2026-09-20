@@ -127,6 +127,49 @@ export class FileExplorerPanel implements IDEPanel {
 
             this.container.appendChild(dropdown);
         });
+
+        const cloudBtn = this.container.querySelector('#lhs-btn-cloud');
+        cloudBtn?.addEventListener('click', (e) => {
+            // Remove existing dropdown if any
+            const existing = document.getElementById('cloud-sync-dropdown');
+            if (existing) existing.remove();
+
+            // Create dropdown menu
+            const dropdown = document.createElement('div');
+            dropdown.id = 'cloud-sync-dropdown';
+            dropdown.className = 'absolute top-10 left-3 bg-white border border-slate-200 rounded shadow-lg py-1 z-50 min-w-[150px]';
+            
+            const pushBtn = document.createElement('button');
+            pushBtn.className = 'w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors';
+            pushBtn.innerText = 'Save current file to Cloud';
+            pushBtn.onclick = async () => {
+                dropdown.remove();
+                await this.store.syncFileToCloud(this.store.activeFileName);
+            };
+            dropdown.appendChild(pushBtn);
+
+            const pullBtn = document.createElement('button');
+            pullBtn.className = 'w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors';
+            pullBtn.innerText = 'Pull all files from Cloud';
+            pullBtn.onclick = async () => {
+                dropdown.remove();
+                await this.store.loadFilesFromCloud();
+            };
+            dropdown.appendChild(pullBtn);
+
+            // Close when clicking outside
+            const closeDropdown = (evt: MouseEvent) => {
+                if (!dropdown.contains(evt.target as Node) && (!cloudBtn || !cloudBtn.contains(evt.target as Node))) {
+                    dropdown.remove();
+                    document.removeEventListener('click', closeDropdown);
+                }
+            };
+            setTimeout(() => {
+                document.addEventListener('click', closeDropdown);
+            }, 0);
+
+            this.container.appendChild(dropdown);
+        });
     }
 
     private bindEvents(): void {

@@ -47,3 +47,10 @@ notebook-code-cell {
     top: -0.5rem; 
     right: 0.25rem; 
 }
+
+/* Declarative UX States */
+[data-disable-insert-all="true"] .bot-inserter,
+[data-disable-insert-top="true"] #top-inserter,
+.hidden-by-qm {
+    display: none !important;
+}

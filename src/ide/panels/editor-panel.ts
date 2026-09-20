@@ -150,6 +150,14 @@ export class EditorPanel implements IDEPanel {
                     if (data.options.showTopBar !== false) this.mainHeaderEl.classList.remove('hidden');
                     else this.mainHeaderEl.classList.add('hidden');
                 }
+                
+                if ((window as any).notebookCore) {
+                    (window as any).notebookCore.options = { ...data.options };
+                    (window as any).notebookCore.updateQuestionModeVisibility();
+                    Array.from((window as any).notebookCore.container.children).forEach((cell: any) => {
+                        if (cell.updateView) cell.updateView();
+                    });
+                }
             }),
             this.bus.on('cell:update-config', ({ indices, config }) => {
                 this.applyCellConfig(indices, config);

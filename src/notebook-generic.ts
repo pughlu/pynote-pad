@@ -538,12 +538,7 @@ class BaseNotebookCell extends HTMLElement {
         }
         
         if (this.botInserter) {
-            if (!isReadOnlyGlobal && !disableInsert) {
-                // In question mode, botInserter visibility is further refined by updateQuestionModeVisibility
-                this.botInserter.style.display = 'flex';
-            } else {
-                this.botInserter.style.display = 'none';
-            }
+            this.botInserter.style.display = '';
         }
 
         if ((window as any).notebookCore) {
@@ -610,7 +605,7 @@ class BaseNotebookCell extends HTMLElement {
         this.appendChild(this.mainBox);
 
         this.botInserter = document.createElement('div');
-        this.botInserter.className = 'absolute left-0 right-0 h-3 group-hover/inserter:h-6 transition-all duration-300 delay-0 group-hover/inserter:delay-250 flex items-center justify-center group/inserter cursor-pointer z-10 w-4/5 mx-auto';
+        this.botInserter.className = 'bot-inserter absolute left-0 right-0 h-3 group-hover/inserter:h-6 transition-all duration-300 delay-0 group-hover/inserter:delay-250 flex items-center justify-center group/inserter cursor-pointer z-50 w-4/5 mx-auto';
         this.botInserter.style.top = 'calc(100% + 6px)';
         this.botInserter.style.transform = 'translateY(-50%)';
         this.botInserter.title = `Add cell below`;
@@ -732,13 +727,10 @@ class NotebookCore {
 
         const topInserter = document.getElementById('top-inserter');
         if (topInserter) {
-            if (this.isReadOnly || this.options.disableInsertAll || this.options.disableInsertTop) {
-                topInserter.style.display = 'none';
-            } else {
-                topInserter.style.display = 'flex';
-                topInserter.onclick = () => this.addCell(this.defaultCellType, 0);
-            }
+            topInserter.onclick = () => this.addCell(this.defaultCellType, 0);
         }
+        
+        this.applyGlobalState();
 
         const selector = document.getElementById('kernel-selector');
         if (selector) {
@@ -987,23 +979,24 @@ class NotebookCore {
         this.container.appendChild(frag);
 
         this.collabArray.getRaw().observe((event: any) => {
+            let index = 0;
             event.changes.delta.forEach((change: any) => {
                 if (change.retain) {
-                    event.index += change.retain;
+                    index += change.retain;
                 } else if (change.insert) {
                     change.insert.forEach((yMap: any, i: number) => {
-                        const adapterMap = this.collabArray.get(event.index + i);
+                        const adapterMap = this.collabArray.get(index + i);
                         const newCell = this.createCellFromCollabMap(adapterMap);
-                        if (this.container.children.length === 0 || (event.index + i) >= this.container.children.length) {
+                        if (this.container.children.length === 0 || (index + i) >= this.container.children.length) {
                             this.container.appendChild(newCell);
                         } else {
-                            this.container.insertBefore(newCell, this.container.children[event.index + i]);
+                            this.container.insertBefore(newCell, this.container.children[index + i]);
                         }
                     });
-                    event.index += change.insert.length;
+                    index += change.insert.length;
                 } else if (change.delete) {
                     for (let i = 0; i < change.delete; i++) {
-                        const cellToRemove = this.container.children[event.index];
+                        const cellToRemove = this.container.children[index];
                         if (cellToRemove) cellToRemove.remove();
                     }
                 }
@@ -1164,17 +1157,20 @@ class NotebookCore {
         }
     }
 
+    applyGlobalState() {
+        if (this.container && this.container.parentElement) {
+            const disableAll = this.options.disableInsertAll || this.isReadOnly;
+            const disableTop = disableAll || this.options.disableInsertTop;
+            this.container.parentElement.setAttribute('data-disable-insert-all', disableAll ? 'true' : 'false');
+            this.container.parentElement.setAttribute('data-disable-insert-top', disableTop ? 'true' : 'false');
+        }
+    }
+
     updateQuestionModeVisibility() {
+        this.applyGlobalState();
         if (!this.options.questionMode) return;
         const children = Array.from(this.container.children) as any[];
-        const topInserter = document.getElementById('top-inserter');
-        if (topInserter) {
-            if (children.length > 0 && children[0].cellType === 'code' && !children[0].effectiveIsLocked && children[0].effectiveIsEditable !== false) {
-                topInserter.style.display = 'flex';
-            } else {
-                topInserter.style.display = 'none';
-            }
-        }
+        
         for (let i = 0; i < children.length; i++) {
             const cell = children[i];
             const isCode = cell.cellType === 'code' && !cell.effectiveIsLocked && cell.effectiveIsEditable !== false;
@@ -1183,31 +1179,12 @@ class NotebookCore {
             
             if (cell.botInserter) {
                 if (isCode || nextIsCode) {
-                    cell.botInserter.style.display = 'flex';
+                    cell.botInserter.classList.remove('hidden-by-qm');
                 } else {
-                    cell.botInserter.style.display = 'none';
+                    cell.botInserter.classList.add('hidden-by-qm');
                 }
             }
 
-            if (cell.deleteBtn) {
-                if (isCode) {
-                    const prev = cell.previousElementSibling;
-                    const prevIsCode = prev && prev.cellType === 'code' && !prev.effectiveIsLocked && prev.effectiveIsEditable !== false;
-                    if (!prevIsCode && !nextIsCode) {
-                        cell.deleteBtn.classList.add('opacity-30', 'cursor-not-allowed');
-                        cell.deleteBtn.classList.remove('hover:text-red-500');
-                        cell.deleteBtn.title = "Cannot delete the last editable code cell";
-                    } else {
-                        cell.deleteBtn.classList.remove('opacity-30', 'cursor-not-allowed');
-                        cell.deleteBtn.classList.add('hover:text-red-500');
-                        cell.deleteBtn.title = "delete cell";
-                    }
-                } else {
-                    cell.deleteBtn.classList.remove('opacity-30', 'cursor-not-allowed');
-                    cell.deleteBtn.classList.add('hover:text-red-500');
-                    cell.deleteBtn.title = "delete cell";
-                }
-            }
         }
     }
 
