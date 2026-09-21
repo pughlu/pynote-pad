@@ -59,7 +59,7 @@
                     <option value="skulpt">Skulpt</option>
                 </select>
                 <button onclick="notebookCore.restartKernel()" class="hover:text-slate-900 transition-colors ml-1" title="Restart the Python environment">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <svg id="icon-restart-kernel" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                 </button>
             </div>
         </div>
@@ -230,6 +230,15 @@
                     const config = payload.config || {};
                     const content = payload.content || '';
                     
+                    if (urlParams.get('questionMode') === '1') {
+                        config.questionMode = true;
+                    }
+                    if (config.questionMode) {
+                        config.kernelType = config.kernelType ?? 'skulpt';
+                        if (config.lockKernel === undefined) config.lockKernel = true;
+                        if (config.showTopBar === undefined) config.showTopBar = true;
+                    }
+
                     if (config.showTopBar) {
                         document.getElementById('main-header').classList.remove('hidden');
                     }
@@ -264,9 +273,6 @@
                     }
                     if (urlParams.get('lockKernel') === '1') {
                         config.lockKernel = true;
-                    }
-                    if (urlParams.get('questionMode') === '1') {
-                        config.questionMode = true;
                     }
 
                     window.notebookCore = new window.NotebookCore('notebook-container', config);

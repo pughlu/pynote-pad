@@ -775,11 +775,21 @@ class NotebookCore {
         // Target the internal indicator element inside our new wrapper
         const el = document.getElementById('kernel-status-indicator');
         if (!el) return;
+        
+        const restartIcon = document.getElementById('icon-restart-kernel');
 
-        if (status === 'loading') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-yellow-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelStarting}`;
-        else if (status === 'packages') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-blue-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelLoadingPackages}`;
-        else if (status === 'ready') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-green-500 inline-block"></span> ${USER_MESSAGES.kernelReady}`;
-        else el.innerHTML = `<span class="h-2 w-2 rounded-full bg-red-500 inline-block"></span> ${USER_MESSAGES.kernelError}`;
+        if (status === 'loading') {
+            el.innerHTML = `<span class="h-2 w-2 rounded-full bg-orange-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelStarting}`;
+            if (restartIcon) restartIcon.classList.add('animate-spin');
+        } else if (status === 'packages') {
+            el.innerHTML = `<span class="h-2 w-2 rounded-full bg-blue-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelLoadingPackages}`;
+        } else if (status === 'ready') {
+            el.innerHTML = `<span class="h-2 w-2 rounded-full bg-green-500 inline-block"></span> ${USER_MESSAGES.kernelReady}`;
+            if (restartIcon) restartIcon.classList.remove('animate-spin');
+        } else {
+            el.innerHTML = `<span class="h-2 w-2 rounded-full bg-red-500 inline-block"></span> ${USER_MESSAGES.kernelError}`;
+            if (restartIcon) restartIcon.classList.remove('animate-spin');
+        }
 
         if (status === 'ready') {
             window.dispatchEvent(new CustomEvent('kernel-status-changed', { detail: { isReady: true } }));
@@ -801,8 +811,11 @@ class NotebookCore {
             this.kernel.destroy();
         }
 
-        // Re-initialize using the currently selected type
-        this.initKernel();
+        // Add a small artificial delay so the UI reset animation (spinner and orange light) is visible
+        setTimeout(() => {
+            // Re-initialize using the currently selected type
+            this.initKernel();
+        }, 300);
     }
 
     updateCellSelectionVisuals() {
