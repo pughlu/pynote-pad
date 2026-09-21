@@ -74,3 +74,9 @@
     background: #f8fafc; 
     border-radius: 0 4px 4px 0; 
 }
+
+/* Fix for inline MathJax alignment */
+mjx-container:not([display="true"]) {
+    position: relative;
+    top: -0.33em;
+}
