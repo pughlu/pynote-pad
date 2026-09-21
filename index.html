@@ -265,6 +265,9 @@
                     if (urlParams.get('lockKernel') === '1') {
                         config.lockKernel = true;
                     }
+                    if (urlParams.get('questionMode') === '1') {
+                        config.questionMode = true;
+                    }
 
                     window.notebookCore = new window.NotebookCore('notebook-container', config);
                     
@@ -362,7 +365,10 @@
             
             document.getElementById('btn-share').classList.remove('hidden');
 
-            window.notebookCore = new window.NotebookCore('notebook-container', { isReadOnly: false });
+            window.notebookCore = new window.NotebookCore('notebook-container', { 
+                isReadOnly: false,
+                questionMode: urlParams.get('questionMode') === '1'
+            });
             
             let initialCode = '# %% [code]\nprint("Standalone Mode")';
             if (window.location.hash.startsWith('#c=')) {

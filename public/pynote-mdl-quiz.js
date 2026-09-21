@@ -100,6 +100,8 @@
     const lockKernel = embed.getAttribute('data-lock-kernel') === 'true';
     if (lockKernel) params.append('lockKernel', '1');
 
+    params.append('questionMode', '1');
+
     iframe.src = `${origin}/index.html?${params.toString()}`;
 
     iframe.onload = () => {
