@@ -612,21 +612,18 @@ class NotebookCore {
             autocompleteMode: 'custom'
         };
 
-        // --- NEW: The Question Mode Macro ---
-        // If questionMode is requested, we rewrite the defaults to be strict.
-        if (options.questionMode) {
-            defaultConfig.lockAllMarkdown = true;
-            defaultConfig.disableMove = true;
-            defaultConfig.disableDelete = true;
-            defaultConfig.disableTypeChange = true;
-            defaultConfig.disableInsertAll = true;
-            defaultConfig.disableInsertTop = true;
-        }
-
-        // Merge the incoming options OVER the new defaults. 
-        // This allows a user to specify {"questionMode": true, "disableInsertAll": false} 
-        // and successfully override the strict default!
         this.options = { ...defaultConfig, ...options };
+
+        // --- NEW: The Question Mode Macro ---
+        // If questionMode is requested, we enforce strict mode, overriding any other config
+        if (this.options.questionMode) {
+            this.options.lockAllMarkdown = true;
+            this.options.disableMove = true;
+            this.options.disableDelete = true;
+            this.options.disableTypeChange = true;
+            this.options.disableInsertAll = true;
+            this.options.disableInsertTop = true;
+        }
 
         this.isReadOnly = this.options.isReadOnly;
         this.defaultCellType = this.options.defaultCellType;
