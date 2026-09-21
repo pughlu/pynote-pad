@@ -27,7 +27,7 @@ class MarkdownCellElement extends BaseNotebookCell {
         this.textarea = document.createElement('textarea');
         this.textarea.className = 'w-full min-h-[3.25rem] py-2.5 pl-4 pr-10 bg-transparent text-[14px] text-slate-700 font-mono focus:outline-none block border-0 leading-relaxed resize-none overflow-hidden';
         this.textarea.value = this.content;
-        this.textarea.placeholder = "Type Markdown here... ($math$ supported). Shift+Enter to render.";
+        this.textarea.placeholder = "";
         
         this.textarea.addEventListener('input', () => {
             this.content = this.textarea.value;

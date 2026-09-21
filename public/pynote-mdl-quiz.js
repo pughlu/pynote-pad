@@ -145,7 +145,7 @@
   }
 
   function initEmbeds() {
-    const embedTargets = document.querySelectorAll('pynote:not([data-initialized]), [data-add-pynote-here="true"]:not([data-initialized])');
+    const embedTargets = document.querySelectorAll('pynote:not([data-initialized]), pre.pynote:not([data-initialized])');
     if (embedTargets.length === 0) return;
 
     let origin = defaultOrigin;
@@ -174,7 +174,8 @@
       embed.style.whiteSpace = 'normal';
       embed.style.fontFamily = 'initial';
       
-      const starterCode = target.tagName.toLowerCase() === 'pynote' ? cleanTemplateContent(target.textContent) : '';
+      const isTemplate = target.tagName.toLowerCase() === 'pynote' || target.tagName.toLowerCase() === 'pre';
+      const starterCode = isTemplate ? cleanTemplateContent(target.textContent) : '';
       embed._starterCode = starterCode;
       
       target.parentNode.insertBefore(embed, target);
