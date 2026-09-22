@@ -26,3 +26,6 @@ Refined the widget UI for clarity and consistency.
   * Renamed the kernel options from "Pyodide" and "Skulpt" to "Python (Pyodide)" and "Python (Skulpt)".
   * Updated the kernel restart button to include a "RESET" label and changed its mouseover tooltip to "Click to re-initialise the Python environment".
 * **`src/notebook-generic.ts` (`restartKernel`)**: Increased the artificial reset delay from 300ms to 700ms to make the reset feedback animation more obvious.
+
+## Bug Fixes
+* **`src/notebook-generic.ts`**: Fixed a bug where running an empty cell or a cell with only comments (e.g., `# add answer below`) multiple times would throw a `SyntaxError: expected an indented block` in Skulpt. This was caused by the execution history builder appending a `try:` block with no statements. Added a `pass` statement to the history blocks and included debug logging to print the full executable script for easier troubleshooting.

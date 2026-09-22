@@ -337,11 +337,13 @@ except BaseException:
             executableCode = historyCode + '\nprint("___BEGIN_OUTPUT___", end="")\n' + executableCode;
         }
 
+        console.debug("Skulpt executing script:\n", executableCode);
+
         try {
             await Sk.misceval.asyncToPromise(() => Sk.importMainWithBody("<stdin>", false, executableCode, true));
             if (code.trim()) {
                 const indentedCode = code.split('\n').map(line => '    ' + line).join('\n');
-                this.executionHistory.push(`try:\n${indentedCode}\nexcept BaseException:\n    pass`);
+                this.executionHistory.push(`try:\n${indentedCode}\n    pass\nexcept BaseException:\n    pass`);
             }
         } catch (err) {
             if (this.isKilled) throw new Error(USER_MESSAGES.outputExceeded);
