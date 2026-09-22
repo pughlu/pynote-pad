@@ -79,5 +79,5 @@
 /* Fix for inline MathJax alignment */
 mjx-container:not([display="true"]) {
     position: relative;
-    top: -0.025em;
+    top: -0.04em;
 }
