@@ -86,6 +86,6 @@ mjx-container:not([display="true"]) {
 math,
 .MathJax,
 .mathjax-inline {
-    vertical-align: 5px;
+    vertical-align: 1px;
     /* Adjust value (-1px to -3px usually fixes formulas sitting too low) */
 }
