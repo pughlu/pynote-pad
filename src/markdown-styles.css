@@ -76,8 +76,16 @@
     border-radius: 0 4px 4px 0;
 }
 
-/* Fix for inline MathJax alignment */
+/* Fix for inline MathJax alignment 
 mjx-container:not([display="true"]) {
     position: relative;
     top: -0.04em;
+}
+*/
+
+math,
+.MathJax,
+.mathjax-inline {
+    vertical-align: -1px;
+    /* Adjust value (-1px to -3px usually fixes formulas sitting too low) */
 }
