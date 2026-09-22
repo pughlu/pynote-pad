@@ -815,7 +815,7 @@ class NotebookCore {
         setTimeout(() => {
             // Re-initialize using the currently selected type
             this.initKernel();
-        }, 300);
+        }, 700);
     }
 
     updateCellSelectionVisuals() {
