@@ -180,6 +180,27 @@ class PyodideWorkerKernel {
             // Optional: we don't nullify onmessage because the new kernel instantly overwrites it
         }
     }
+
+    interrupt() {
+        if (this.worker) {
+            this.worker.terminate();
+            globalPyodideWorker = null;
+            this.worker = null;
+        }
+        this.isReady = false;
+        
+        // Reject all pending callbacks with KeyboardInterrupt
+        for (const id in this.callbacks) {
+            this.callbacks[id].reject(new Error("KeyboardInterrupt: Kernel restarted..."));
+        }
+        this.callbacks = {};
+        this.targetDivs = {};
+        
+        // Respawn the worker in the background
+        if (this.statusCallback) {
+            this.init(this.statusCallback);
+        }
+    }
 }
 
 // --- NEW: SKULPT KERNEL ADAPTER ---
@@ -392,10 +413,23 @@ except BaseException:
 
     destroy() {
         if (this.currentInputReject) {
-            this.currentInputReject();
+            this.currentInputReject(new Error("KeyboardInterrupt"));
             this.currentInputReject = null;
         }
         this.isReady = false;
+    }
+    
+    interrupt() {
+        if (this.currentInputReject) {
+            this.currentInputReject(new Error("KeyboardInterrupt: Kernel restarted..."));
+            this.currentInputReject = null;
+        }
+        
+        // Force Skulpt to timeout instantly if it's currently executing synchronously
+        if (typeof (window as any).Sk !== 'undefined') {
+            (window as any).Sk.execLimit = 1;
+            setTimeout(() => { (window as any).Sk.execLimit = 5000; }, 50); // Reset after it trips
+        }
     }
 
     showInputPrompt(promptText: string): Promise<string> {
@@ -1068,6 +1102,8 @@ class NotebookCore {
                 if (typeof (cell as any).setButtonState === 'function') {
                     (cell as any).setButtonState('default');
                 }
+                const btn = cell.querySelector('.cell-action-btn');
+                if (btn) btn.classList.remove('is-running');
             }
         });
 
@@ -1079,6 +1115,30 @@ class NotebookCore {
         setTimeout(() => {
             this.initKernel();
         }, 700);
+    }
+    
+    async interrupt() {
+        if (this.isReadOnly) return;
+        
+        // Unlock global execution state
+        this.isExecuting = false;
+
+        // Reset all cell execution states
+        Array.from(this.container.children).forEach(cell => {
+            if (cell.tagName.toLowerCase() === 'notebook-code-cell') {
+                (cell as any).isExecuting = false;
+                if (typeof (cell as any).setButtonState === 'function') {
+                    (cell as any).setButtonState('default');
+                }
+                const btn = cell.querySelector('.cell-action-btn');
+                if (btn) btn.classList.remove('is-running');
+            }
+        });
+        
+        // Call kernel interrupt
+        if (this.kernel && typeof this.kernel.interrupt === 'function') {
+            this.kernel.interrupt();
+        }
     }
 
     updateCellSelectionVisuals() {

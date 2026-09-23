@@ -63,6 +63,24 @@ body[data-kernel-executing="true"] .cell-action-btn:not(.is-running) {
     cursor: not-allowed;
     filter: grayscale(100%);
 }
+
+.cell-action-btn.is-running:hover {
+    background-color: #ef4444 !important;
+    cursor: pointer !important;
+}
+
+.cell-action-btn.is-running:hover .animate-spin {
+    display: none;
+}
+
+.cell-action-btn.is-running:hover::after {
+    content: '';
+    display: block;
+    width: 12px;
+    height: 12px;
+    background-color: white;
+    border-radius: 2px;
+}
 body[data-kernel-executing="true"] #run-all-btn {
     opacity: 0.5;
     pointer-events: none;

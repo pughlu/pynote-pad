@@ -349,7 +349,13 @@ class CodeCellElement extends BaseNotebookCell {
         }
 
         // 1. EXECUTION LOCK: Prevent double-clicks or rapid Shift+Enters from running twice!
-        if (this.isExecuting || (window.notebookCore && window.notebookCore.isExecuting)) return;
+        if (this.isExecuting || (window.notebookCore && window.notebookCore.isExecuting)) {
+            if (this.isExecuting && window.notebookCore && typeof window.notebookCore.interrupt === 'function') {
+                window.notebookCore.interrupt();
+            }
+            return;
+        }
+        
         this.isExecuting = true;
         if (window.notebookCore) window.notebookCore.isExecuting = true;
 
