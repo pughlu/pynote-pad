@@ -191,6 +191,7 @@ class SkulptKernel {
     isKilled!: boolean;
     executionHistory!: string[];
     capturingOutput!: boolean;
+    currentInputReject!: any;
 
     constructor(options: any = {}) {
         this.isReady = false;
@@ -200,6 +201,7 @@ class SkulptKernel {
         this.isKilled = false;
         this.executionHistory = [];
         this.capturingOutput = true;
+        this.currentInputReject = null;
     }
 
     restart() {
@@ -268,6 +270,7 @@ class SkulptKernel {
                 }
                 this.writeOutput(text, 'text-slate-700');
             },
+            inputfun: (promptText) => this.showInputPrompt(promptText),
             read: (x) => {
                 if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined) throw USER_MESSAGES.fileNotFound + "'" + x + "'";
                 return Sk.builtinFiles["files"][x];
@@ -338,10 +341,11 @@ except BaseException:
         }
 
         try {
+            console.debug("Skulpt Executable Script:\n", executableCode);
             await Sk.misceval.asyncToPromise(() => Sk.importMainWithBody("<stdin>", false, executableCode, true));
             if (code.trim()) {
                 const indentedCode = code.split('\n').map(line => '    ' + line).join('\n');
-                this.executionHistory.push(`try:\n${indentedCode}\nexcept BaseException:\n    pass`);
+                this.executionHistory.push(`try:\n${indentedCode}\n    pass\nexcept BaseException:\n    pass`);
             }
         } catch (err) {
             if (this.isKilled) throw new Error(USER_MESSAGES.outputExceeded);
@@ -355,7 +359,7 @@ except BaseException:
 
             if (!isFatalError && code.trim()) {
                 const indentedCode = code.split('\n').map(line => '    ' + line).join('\n');
-                this.executionHistory.push(`try:\n${indentedCode}\nexcept BaseException:\n    pass`);
+                this.executionHistory.push(`try:\n${indentedCode}\n    pass\nexcept BaseException:\n    pass`);
             }
 
             // Map the injected lines back to the original line numbers
@@ -380,7 +384,53 @@ except BaseException:
     }
 
     destroy() {
+        if (this.currentInputReject) {
+            this.currentInputReject();
+            this.currentInputReject = null;
+        }
         this.isReady = false;
+    }
+
+    showInputPrompt(promptText: string): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const modal = document.getElementById('pynote-input-modal');
+            const form = document.getElementById('pynote-input-form');
+            const promptLabel = document.getElementById('pynote-input-prompt');
+            const inputField = document.getElementById('pynote-input-field') as HTMLInputElement;
+
+            if (!modal || !form || !promptLabel || !inputField) {
+                // Fallback to prompt if modal is missing
+                const res = prompt(promptText);
+                resolve(res || '');
+                return;
+            }
+
+            promptLabel.innerText = promptText;
+            inputField.value = '';
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            inputField.focus();
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                cleanup();
+                resolve(inputField.value);
+            };
+
+            const cleanup = () => {
+                form.removeEventListener('submit', handleSubmit);
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                this.currentInputReject = null;
+            };
+
+            form.addEventListener('submit', handleSubmit);
+            
+            this.currentInputReject = () => {
+                cleanup();
+                reject(new Error("Input cancelled"));
+            };
+        });
     }
 }
 
@@ -919,10 +969,19 @@ class NotebookCore {
         const el = document.getElementById('kernel-status-indicator');
         if (!el) return;
 
-        if (status === 'loading') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-yellow-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelStarting}`;
+        if (status === 'loading') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-orange-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelStarting}`;
         else if (status === 'packages') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-blue-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelLoadingPackages}`;
         else if (status === 'ready') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-green-500 inline-block"></span> ${USER_MESSAGES.kernelReady}`;
         else el.innerHTML = `<span class="h-2 w-2 rounded-full bg-red-500 inline-block"></span> ${USER_MESSAGES.kernelError}`;
+
+        const icon = document.getElementById('icon-restart-kernel');
+        if (icon) {
+            if (status === 'loading') {
+                icon.classList.add('animate-spin');
+            } else if (status === 'ready' || status === 'error') {
+                icon.classList.remove('animate-spin');
+            }
+        }
 
         if (status === 'ready') {
             window.dispatchEvent(new CustomEvent('kernel-status-changed', { detail: { isReady: true } }));
@@ -945,7 +1004,9 @@ class NotebookCore {
         }
 
         // Re-initialize using the currently selected type
-        this.initKernel();
+        setTimeout(() => {
+            this.initKernel();
+        }, 700);
     }
 
     updateCellSelectionVisuals() {

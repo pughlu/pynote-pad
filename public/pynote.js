@@ -28,13 +28,13 @@
     }
 
     function initPyNoteEmbeds() {
-        const targets = document.querySelectorAll('pynote:not([data-initialized]), [data-add-pynote-here="true"]:not([data-initialized])');
+        const targets = document.querySelectorAll('pynote:not([data-initialized]), pre.pynote:not([data-initialized]), [data-add-pynote-here="true"]:not([data-initialized])');
         if (targets.length === 0) return;
 
         targets.forEach(target => {
             target.setAttribute('data-initialized', 'true');
             
-            const initialContent = target.tagName.toLowerCase() === 'pynote' ? cleanTemplateContent(target.textContent) : '';
+            const initialContent = (target.tagName.toLowerCase() === 'pynote' || target.tagName.toLowerCase() === 'pre') ? cleanTemplateContent(target.textContent) : '';
             target.style.display = 'none';
 
             const wrapper = document.createElement('div');

@@ -11,7 +11,7 @@ if (customElements.get('notebook-markdown-cell')) {
         
         try {
             this.viewDiv.innerHTML = (typeof marked !== 'undefined') 
-                ? marked.parse(this.content || '*Empty Markdown cell*') 
+                ? marked.parse(this.content || '')
                 : (this.content || '');
         } catch (err) {
             console.warn("Markdown parse error:", err);
