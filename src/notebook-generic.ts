@@ -818,25 +818,21 @@ class NotebookCore {
             document.body.setAttribute('data-kernel-executing', 'true');
             if (btnRunAll) {
                 btnRunAll.innerHTML = `${stopIcon} Stop All`;
-                btnRunAll.classList.replace('bg-blue-600', 'bg-black');
-                btnRunAll.classList.replace('hover:bg-blue-700', 'hover:bg-gray-800');
+                btnRunAll.classList.add('is-executing');
             }
             if (ideBtnRunAll) {
                 ideBtnRunAll.innerHTML = `${stopIcon} Stop All`;
-                ideBtnRunAll.classList.replace('bg-blue-600', 'bg-black');
-                ideBtnRunAll.classList.replace('hover:bg-blue-700', 'hover:bg-gray-800');
+                ideBtnRunAll.classList.add('is-executing');
             }
         } else {
             document.body.removeAttribute('data-kernel-executing');
             if (btnRunAll) {
                 btnRunAll.innerHTML = `${playIcon} Run All`;
-                btnRunAll.classList.replace('bg-black', 'bg-blue-600');
-                btnRunAll.classList.replace('hover:bg-gray-800', 'hover:bg-blue-700');
+                btnRunAll.classList.remove('is-executing');
             }
             if (ideBtnRunAll) {
                 ideBtnRunAll.innerHTML = `${playIcon} Run All`;
-                ideBtnRunAll.classList.replace('bg-black', 'bg-blue-600');
-                ideBtnRunAll.classList.replace('hover:bg-gray-800', 'hover:bg-blue-700');
+                ideBtnRunAll.classList.remove('is-executing');
             }
         }
     }

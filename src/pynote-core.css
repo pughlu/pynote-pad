@@ -84,9 +84,11 @@ body[data-kernel-executing="true"] .cell-action-btn:hover::after {
     background-color: white;
     border-radius: 2px;
 }
-body[data-kernel-executing="true"] #run-all-btn {
-    opacity: 0.5;
-    pointer-events: none;
-    cursor: not-allowed;
-    filter: grayscale(100%);
+
+#run-all-btn.is-executing, #btn-run-all.is-executing {
+    background-color: #000000 !important;
+}
+
+#run-all-btn.is-executing:hover, #btn-run-all.is-executing:hover {
+    background-color: #1f2937 !important;
 }
