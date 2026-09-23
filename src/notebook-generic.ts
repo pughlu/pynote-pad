@@ -1161,10 +1161,12 @@ class NotebookCore {
         if (yMap.get('isEditable') === false) cell.setAttribute('is-editable', 'false');
         if (yMap.get('isDeletable') === false) cell.setAttribute('is-deletable', 'false');
         if (yMap.get('isMoveable') === false) cell.setAttribute('is-moveable', 'false');
-        
+        if (yMap.get('isInit')) cell.setAttribute('is-init', '');
+
         const meta: any = {};
+        const reservedKeys = ['content', 'type', 'isLocked', 'isHidden', 'isEditable', 'isDeletable', 'isMoveable', 'isInit', 'isEditing', 'metadata'];
         for (const [key, value] of yMap.entries()) {
-            if (key !== 'content' && key !== 'type' && key !== 'isLocked' && key !== 'isHidden' && key !== 'isEditable' && key !== 'isDeletable' && key !== 'isMoveable') {
+            if (!reservedKeys.includes(key)) {
                 meta[key] = value;
             }
         }
@@ -1229,6 +1231,8 @@ class NotebookCore {
         if (data.isEditable === false) cell.setAttribute('is-editable', 'false');
         if (data.isDeletable === false) cell.setAttribute('is-deletable', 'false');
         if (data.isMoveable === false) cell.setAttribute('is-moveable', 'false');
+        if (data.isInit) cell.setAttribute('is-init', '');
+        
         if (data.metadata) {
             cell.setAttribute('cell-metadata', JSON.stringify(data.metadata));
             (cell as any).metadata = data.metadata;

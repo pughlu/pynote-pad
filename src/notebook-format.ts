@@ -14,8 +14,16 @@ export class NotebookFormatConverter {
             
             const metaObj: any = { ...data.metadata };
             
-            // Clean legacy locked tag if it exists
+            // Clean legacy locked tag and leaked internal states
             delete metaObj.locked;
+            delete metaObj.isInit;
+            delete metaObj.isHidden;
+            delete metaObj.isLocked;
+            delete metaObj.isEditing;
+            delete metaObj.isDeletable;
+            delete metaObj.isEditable;
+            delete metaObj.isMoveable;
+            delete metaObj.metadata;
             
             // Apply current states
             if (data.isLocked) metaObj.locked = true;
