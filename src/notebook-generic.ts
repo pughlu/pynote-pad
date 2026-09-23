@@ -410,8 +410,8 @@ except BaseException:
                 const finalRes = res || '';
                 this.inputCache.push(finalRes);
                 this.currentInputIndex++;
-                if (typeof (window as any).Sk !== 'undefined' && (window as any).Sk.hardInterrupt) {
-                    (window as any).Sk.hardInterrupt += (Date.now() - waitStart);
+                if (typeof (window as any).Sk !== 'undefined' && (window as any).Sk.execStart) {
+                    (window as any).Sk.execStart = Date.now();
                 }
                 resolve(finalRes);
                 return;
@@ -447,8 +447,8 @@ except BaseException:
                 inputWrap.remove();
                 promptSpan.innerText = promptText + finalRes + '\n';
                 
-                if (typeof (window as any).Sk !== 'undefined' && (window as any).Sk.hardInterrupt) {
-                    (window as any).Sk.hardInterrupt += (Date.now() - waitStart);
+                if (typeof (window as any).Sk !== 'undefined' && (window as any).Sk.execStart) {
+                    (window as any).Sk.execStart = Date.now();
                 }
                 
                 resolve(finalRes);
