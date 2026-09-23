@@ -51,7 +51,7 @@ export class EditorPanel implements IDEPanel {
                             </div>
                             <div class="flex items-center gap-2">
                                 <button id="btn-run-all" class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors shadow-sm">
-                                    Run All
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg> Run All
                                 </button>
                             </div>
                         </header>
@@ -82,7 +82,11 @@ export class EditorPanel implements IDEPanel {
 
         // Toolbar actions
         this.container.querySelector('#btn-run-all')?.addEventListener('click', () => {
-            if (window.notebookCore?.runAll) window.notebookCore.runAll();
+            if (window.notebookCore?.isExecuting) {
+                if (window.notebookCore.interrupt) window.notebookCore.interrupt();
+            } else {
+                if (window.notebookCore?.runAll) window.notebookCore.runAll();
+            }
         });
         const ui = this.container.querySelector('#pynote-kernel-ui');
         ui?.addEventListener('kernel-change', (e: any) => {

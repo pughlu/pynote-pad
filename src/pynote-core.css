@@ -57,23 +57,26 @@ notebook-text-cell[is-hidden] {
 }
 
 /* Global Execution State */
+/* Global Execution State */
 body[data-kernel-executing="true"] .cell-action-btn:not(.is-running) {
     opacity: 0.5;
-    pointer-events: none;
-    cursor: not-allowed;
     filter: grayscale(100%);
 }
 
-.cell-action-btn.is-running:hover {
-    background-color: #ef4444 !important;
+/* ALL run action buttons morph to a black stop button on hover when kernel is executing */
+body[data-kernel-executing="true"] .cell-action-btn:hover {
+    background-color: #000000 !important;
     cursor: pointer !important;
+    opacity: 1 !important;
+    filter: none !important;
 }
 
-.cell-action-btn.is-running:hover .animate-spin {
-    display: none;
+body[data-kernel-executing="true"] .cell-action-btn:hover svg,
+body[data-kernel-executing="true"] .cell-action-btn:hover .animate-spin {
+    display: none !important;
 }
 
-.cell-action-btn.is-running:hover::after {
+body[data-kernel-executing="true"] .cell-action-btn:hover::after {
     content: '';
     display: block;
     width: 12px;

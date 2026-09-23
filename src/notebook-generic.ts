@@ -808,10 +808,36 @@ class NotebookCore {
     get isExecuting(): boolean { return this._isExecuting; }
     set isExecuting(val: boolean) {
         this._isExecuting = val;
+        
+        const btnRunAll = document.getElementById('run-all-btn');
+        const ideBtnRunAll = document.getElementById('btn-run-all');
+        const playIcon = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>`;
+        const stopIcon = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"></rect></svg>`;
+
         if (val) {
             document.body.setAttribute('data-kernel-executing', 'true');
+            if (btnRunAll) {
+                btnRunAll.innerHTML = `${stopIcon} Stop All`;
+                btnRunAll.classList.replace('bg-blue-600', 'bg-black');
+                btnRunAll.classList.replace('hover:bg-blue-700', 'hover:bg-gray-800');
+            }
+            if (ideBtnRunAll) {
+                ideBtnRunAll.innerHTML = `${stopIcon} Stop All`;
+                ideBtnRunAll.classList.replace('bg-blue-600', 'bg-black');
+                ideBtnRunAll.classList.replace('hover:bg-blue-700', 'hover:bg-gray-800');
+            }
         } else {
             document.body.removeAttribute('data-kernel-executing');
+            if (btnRunAll) {
+                btnRunAll.innerHTML = `${playIcon} Run All`;
+                btnRunAll.classList.replace('bg-black', 'bg-blue-600');
+                btnRunAll.classList.replace('hover:bg-gray-800', 'hover:bg-blue-700');
+            }
+            if (ideBtnRunAll) {
+                ideBtnRunAll.innerHTML = `${playIcon} Run All`;
+                ideBtnRunAll.classList.replace('bg-black', 'bg-blue-600');
+                ideBtnRunAll.classList.replace('hover:bg-gray-800', 'hover:bg-blue-700');
+            }
         }
     }
 
