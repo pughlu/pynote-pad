@@ -404,13 +404,7 @@ except BaseException:
         }
 
         return new Promise((resolve, reject) => {
-            const modal = document.getElementById('pynote-input-modal');
-            const form = document.getElementById('pynote-input-form');
-            const promptLabel = document.getElementById('pynote-input-prompt');
-            const inputField = document.getElementById('pynote-input-field') as HTMLInputElement;
-
-            if (!modal || !form || !promptLabel || !inputField) {
-                // Fallback to prompt if modal is missing
+            if (!this.currentOutputDiv) {
                 const res = prompt(promptText);
                 const finalRes = res || '';
                 this.inputCache.push(finalRes);
@@ -419,32 +413,56 @@ except BaseException:
                 return;
             }
 
-            promptLabel.innerText = promptText;
-            inputField.value = '';
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
+            const promptSpan = document.createElement('span');
+            promptSpan.className = 'text-slate-700';
+            promptSpan.innerText = promptText;
+            
+            const inputField = document.createElement('input');
+            inputField.type = 'text';
+            inputField.className = 'bg-slate-100 border border-slate-300 outline-none font-mono text-sm py-0.5 px-1 rounded ml-1 min-w-[200px] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all';
+            
+            const inputWrap = document.createElement('span');
+            inputWrap.className = 'inline-flex items-center';
+            inputWrap.appendChild(inputField);
+
+            this.currentOutputDiv.appendChild(promptSpan);
+            this.currentOutputDiv.appendChild(inputWrap);
+            
+            if (this.currentOutputDiv.parentElement) {
+                this.currentOutputDiv.parentElement.scrollTop = this.currentOutputDiv.parentElement.scrollHeight;
+            }
+
             inputField.focus();
 
-            const handleSubmit = (e) => {
-                e.preventDefault();
+            const handleSubmit = () => {
                 cleanup();
                 const finalRes = inputField.value;
                 this.inputCache.push(finalRes);
                 this.currentInputIndex++;
+                
+                inputWrap.remove();
+                promptSpan.innerText = promptText + finalRes + '\n';
+                
                 resolve(finalRes);
             };
 
+            const handleKeyDown = (e: KeyboardEvent) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSubmit();
+                }
+            };
+
             const cleanup = () => {
-                form.removeEventListener('submit', handleSubmit);
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
+                inputField.removeEventListener('keydown', handleKeyDown);
                 this.currentInputReject = null;
             };
 
-            form.addEventListener('submit', handleSubmit);
+            inputField.addEventListener('keydown', handleKeyDown);
             
             this.currentInputReject = () => {
                 cleanup();
+                inputWrap.remove();
                 reject(new Error("Input cancelled"));
             };
         });
