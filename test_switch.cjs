@@ -11,7 +11,7 @@ const { chromium } = require('playwright');
   
   await page.waitForTimeout(2000);
   
-  await page.selectOption('#kernel-selector', 'pyodide');
+  await page.selectOption('.kernel-selector', 'pyodide');
   console.log("Switched to Pyodide. Waiting for ready...");
   
   await page.waitForTimeout(2000);

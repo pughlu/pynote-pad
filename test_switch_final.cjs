@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(2000);
   
   console.log("Switching kernel...");
-  await page.selectOption('#kernel-selector', 'pyodide');
+  await page.selectOption('.kernel-selector', 'pyodide');
   
   // Wait 3 seconds for the new Pyodide kernel to initialize completely
   await page.waitForTimeout(3000);

@@ -49,7 +49,10 @@ notebook-code-cell {
 /* Declarative UX States */
 [data-disable-insert-all="true"] .bot-inserter,
 [data-disable-insert-top="true"] #top-inserter,
-.hidden-by-qm {
+.hidden-by-qm,
+notebook-code-cell[is-hidden],
+notebook-markdown-cell[is-hidden],
+notebook-text-cell[is-hidden] {
     display: none !important;
 }
 

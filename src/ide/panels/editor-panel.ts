@@ -4,6 +4,7 @@
 import { EventBus } from '../event-bus';
 import { IDEStore } from '../store';
 import { CellConfig, IDEPanel, ViewMode } from '../types';
+import '../../kernel-ui';
 
 export class EditorPanel implements IDEPanel {
     private container!: HTMLElement;
@@ -14,8 +15,6 @@ export class EditorPanel implements IDEPanel {
     private rawTextareaEl!: HTMLTextAreaElement;
     private rawTitleEl!: HTMLElement;
     private mainHeaderEl!: HTMLElement;
-    private kernelIndicatorEl!: HTMLElement;
-    private kernelSelectorEl!: HTMLSelectElement;
 
     private bus: EventBus;
     private store: IDEStore;
@@ -48,18 +47,7 @@ export class EditorPanel implements IDEPanel {
                     <div id="visual-editor-wrapper" class="w-full bg-white border border-slate-200 rounded-md shadow-sm flex flex-col shrink-0 min-h-[500px] mb-12 transition-all duration-300" style="max-width: 80ch;">
                         <header id="main-header" class="hidden bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shrink-0 rounded-t-md transition-all">
                             <div class="flex items-center gap-3">
-                                <div id="kernel-status-wrapper" class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md tracking-wider border border-slate-200 shadow-inner">
-                                    <div id="kernel-status-indicator" class="flex items-center gap-1.5 uppercase min-w-[70px]">Starting...</div>
-                                    <div class="w-px h-3 bg-slate-300 mx-0.5"></div>
-                                    <select id="kernel-selector" class="bg-transparent border-none outline-none cursor-pointer font-bold text-slate-600 hover:text-slate-900 uppercase text-[10px] text-center appearance-none px-1">
-                                        <option value="pyodide">Python (Pyodide)</option>
-                                        <option value="skulpt">Python (Skulpt)</option>
-                                    </select>
-                                    <button id="btn-restart-kernel" class="hover:text-slate-900 transition-colors ml-1 flex items-center gap-1" title="Click to re-initialise the Python environment">
-                                        <svg id="icon-restart-kernel-ide" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                                        <span>RESET</span>
-                                    </button>
-                                </div>
+                                <pynote-kernel-ui id="pynote-kernel-ui"></pynote-kernel-ui>
                             </div>
                             <div class="flex items-center gap-2">
                                 <button id="btn-run-all" class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors shadow-sm">
@@ -91,19 +79,14 @@ export class EditorPanel implements IDEPanel {
         this.rawTextareaEl = this.container.querySelector('#raw-editor-textarea') as HTMLTextAreaElement;
         this.rawTitleEl = this.container.querySelector('#raw-editor-title') as HTMLElement;
         this.mainHeaderEl = this.container.querySelector('#main-header') as HTMLElement;
-        this.kernelIndicatorEl = this.container.querySelector('#kernel-status-indicator') as HTMLElement;
-        this.kernelSelectorEl = this.container.querySelector('#kernel-selector') as HTMLSelectElement;
 
         // Toolbar actions
         this.container.querySelector('#btn-run-all')?.addEventListener('click', () => {
             if (window.notebookCore?.runAll) window.notebookCore.runAll();
         });
-        this.container.querySelector('#btn-restart-kernel')?.addEventListener('click', () => {
-            if (window.notebookCore?.restartKernel) window.notebookCore.restartKernel();
-        });
-        this.kernelSelectorEl?.addEventListener('change', (e) => {
-            const val = (e.target as HTMLSelectElement).value;
-            this.store.setOption('kernelType', val);
+        const ui = this.container.querySelector('#pynote-kernel-ui');
+        ui?.addEventListener('kernel-change', (e: any) => {
+            this.store.setOption('kernelType', e.detail.kernel);
         });
 
         // Live typing listener on raw editor textarea
@@ -138,9 +121,7 @@ export class EditorPanel implements IDEPanel {
                 this.syncCurrentState();
             }),
             this.bus.on('config:changed', (data) => {
-                if (data.options.kernelType && this.kernelSelectorEl) {
-                    this.kernelSelectorEl.value = data.options.kernelType;
-                }
+                // Kernel selector UI is handled by pynote-kernel-ui
                 const maxWidth = data.options.maxWidthChars;
                 const widthStyle = maxWidth && maxWidth !== -1 && maxWidth !== '-1' ? `${maxWidth}ch` : '100%';
                 if (this.visualWrapperEl) this.visualWrapperEl.style.maxWidth = widthStyle;
@@ -174,16 +155,8 @@ export class EditorPanel implements IDEPanel {
             this.store.setSelectedCellIndices(indices);
         });
 
-        // Forward kernel status
         window.addEventListener('kernel-status-changed', (e: any) => {
             const isReady = e.detail?.isReady;
-            if (this.kernelIndicatorEl) {
-                if (isReady) {
-                    this.kernelIndicatorEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-green-500 inline-block"></span> Ready`;
-                } else {
-                    this.kernelIndicatorEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-amber-500 inline-block"></span> Starting...`;
-                }
-            }
             this.bus.emit('kernel:status-changed', {
                 isReady: !!isReady,
                 text: isReady ? 'Ready' : 'Starting...'
@@ -254,9 +227,7 @@ export class EditorPanel implements IDEPanel {
             if (options.showTopBar !== false) this.mainHeaderEl.classList.remove('hidden');
             else this.mainHeaderEl.classList.add('hidden');
 
-            if (this.kernelSelectorEl) {
-                this.kernelSelectorEl.value = options.kernelType || 'skulpt';
-            }
+            // Kernel selection UI updates are handled automatically by NotebookCore's pynote-kernel-ui element
 
             // Cleanup previous kernel worker to prevent memory leaks
             if (window.notebookCore?.kernel?.destroy) {

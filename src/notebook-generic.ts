@@ -840,16 +840,12 @@ class NotebookCore {
         
         this.applyGlobalState();
 
-        const selector = document.getElementById('kernel-selector');
-        if (selector) {
-            (selector as any).value = this.options.kernelType;
-            if (this.options.lockKernel) {
-                (selector as HTMLSelectElement).disabled = true;
-                selector.classList.add('opacity-50', 'cursor-not-allowed');
-            } else {
-                (selector as HTMLSelectElement).disabled = false;
-                selector.classList.remove('opacity-50', 'cursor-not-allowed');
-            }
+        const ui = document.getElementById('pynote-kernel-ui') as any;
+        if (ui) {
+            ui.kernel = this.options.kernelType;
+            ui.disabled = !!this.options.lockKernel;
+            ui.addEventListener('kernel-change', (e: any) => this.switchKernel(e.detail.kernel));
+            ui.addEventListener('kernel-restart', () => this.restartKernel());
         }
 
         this.initKernel();
@@ -1023,23 +1019,18 @@ class NotebookCore {
     }
 
     updateKernelStatus(status) {
-        // Target the internal indicator element inside our new wrapper
-        const el = document.getElementById('kernel-status-indicator');
-        if (!el) return;
-
-        if (status === 'loading') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-orange-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelStarting}`;
-        else if (status === 'packages') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-blue-500 inline-block animate-pulse"></span> ${USER_MESSAGES.kernelLoadingPackages}`;
-        else if (status === 'ready') el.innerHTML = `<span class="h-2 w-2 rounded-full bg-green-500 inline-block"></span> ${USER_MESSAGES.kernelReady}`;
-        else el.innerHTML = `<span class="h-2 w-2 rounded-full bg-red-500 inline-block"></span> ${USER_MESSAGES.kernelError}`;
-
-        const icon = document.getElementById('icon-restart-kernel');
-        if (icon) {
-            if (status === 'loading') {
-                icon.classList.add('animate-spin');
-            } else if (status === 'ready' || status === 'error') {
-                icon.classList.remove('animate-spin');
-            }
+        const ui = document.getElementById('pynote-kernel-ui') as any;
+        if (ui && typeof ui.setStatus === 'function') {
+            ui.setStatus(status);
         }
+
+        // Ensure buttons sync up their run state
+        const cells = Array.from(this.container.children).filter(c => c.tagName.toLowerCase() === 'notebook-code-cell');
+        cells.forEach(c => {
+            if (!(c as any).isExecuting && typeof (c as any).setButtonState === 'function') {
+                (c as any).setButtonState('default');
+            }
+        });
 
         if (status === 'ready') {
             window.dispatchEvent(new CustomEvent('kernel-status-changed', { detail: { isReady: true } }));
@@ -1065,11 +1056,18 @@ class NotebookCore {
     async restartKernel() {
         if (this.isReadOnly) return;
         this.updateKernelStatus('loading');
+        
+        // Unlock any stuck execution states
+        this.isExecuting = false;
 
         Array.from(this.container.children).forEach(cell => {
             if (cell.tagName.toLowerCase() === 'notebook-code-cell' && (cell as any).clearOutput) {
+                (cell as any).isExecuting = false;
                 (cell as any).clearOutput();
                 (cell as any).updateKernelUIState(false);
+                if (typeof (cell as any).setButtonState === 'function') {
+                    (cell as any).setButtonState('default');
+                }
             }
         });
 
