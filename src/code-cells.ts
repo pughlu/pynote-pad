@@ -363,6 +363,7 @@ class CodeCellElement extends BaseNotebookCell {
         }
         
         this.setButtonState('running');
+        if (this.actionBtnElement) this.actionBtnElement.classList.add('is-running');
         this.outputWrapper.classList.remove('hidden');
         this.outputWrapper.classList.add('flex');
         this.outputContent.innerHTML = '';
@@ -396,6 +397,7 @@ class CodeCellElement extends BaseNotebookCell {
             
             // 2. RELEASE LOCK: Execution is entirely finished
             this.isExecuting = false; 
+            if (this.actionBtnElement) this.actionBtnElement.classList.remove('is-running');
             if (window.notebookCore) window.notebookCore.isExecuting = false;
         }
     }

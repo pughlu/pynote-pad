@@ -769,11 +769,21 @@ class NotebookCore {
     selectedIndices!: number[];
     collabDoc!: any; // ICollaborativeDocument
     collabArray!: any; // ICollaborativeArray
-    isExecuting!: boolean;
+    private _isExecuting: boolean = false;
+    
+    get isExecuting(): boolean { return this._isExecuting; }
+    set isExecuting(val: boolean) {
+        this._isExecuting = val;
+        if (val) {
+            document.body.setAttribute('data-kernel-executing', 'true');
+        } else {
+            document.body.removeAttribute('data-kernel-executing');
+        }
+    }
 
     constructor(containerId: string, options: any = {}) {
         this.container = document.getElementById(containerId);
-        this.isExecuting = false;
+        this._isExecuting = false;
 
         const defaultConfig = {
             widgetId: Math.random().toString(36).substring(2, 10),

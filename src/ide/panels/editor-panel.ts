@@ -52,12 +52,12 @@ export class EditorPanel implements IDEPanel {
                                     <div id="kernel-status-indicator" class="flex items-center gap-1.5 uppercase min-w-[70px]">Starting...</div>
                                     <div class="w-px h-3 bg-slate-300 mx-0.5"></div>
                                     <select id="kernel-selector" class="bg-transparent border-none outline-none cursor-pointer font-bold text-slate-600 hover:text-slate-900 uppercase text-[10px] text-center appearance-none px-1">
-                                        <option value="skulpt">Skulpt</option>
-                                        <option value="pyodide">Pyodide</option>
+                                        <option value="pyodide">Python (Pyodide)</option>
+                                        <option value="skulpt">Python (Skulpt)</option>
                                     </select>
-                                    <div class="w-px h-3 bg-slate-300 mx-0.5"></div>
-                                    <button id="btn-restart-kernel" class="text-slate-500 hover:text-slate-800 transition-colors p-0.5 rounded hover:bg-slate-200" title="Restart Kernel">
-                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                    <button id="btn-restart-kernel" class="hover:text-slate-900 transition-colors ml-1 flex items-center gap-1" title="Click to re-initialise the Python environment">
+                                        <svg id="icon-restart-kernel-ide" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                        <span>RESET</span>
                                     </button>
                                 </div>
                             </div>

@@ -52,3 +52,17 @@ notebook-code-cell {
 .hidden-by-qm {
     display: none !important;
 }
+
+/* Global Execution State */
+body[data-kernel-executing="true"] .cell-action-btn:not(.is-running) {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: not-allowed;
+    filter: grayscale(100%);
+}
+body[data-kernel-executing="true"] #run-all-btn {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: not-allowed;
+    filter: grayscale(100%);
+}
