@@ -404,11 +404,15 @@ except BaseException:
         }
 
         return new Promise((resolve, reject) => {
+            const waitStart = Date.now();
             if (!this.currentOutputDiv) {
                 const res = prompt(promptText);
                 const finalRes = res || '';
                 this.inputCache.push(finalRes);
                 this.currentInputIndex++;
+                if (typeof (window as any).Sk !== 'undefined' && (window as any).Sk.hardInterrupt) {
+                    (window as any).Sk.hardInterrupt += (Date.now() - waitStart);
+                }
                 resolve(finalRes);
                 return;
             }
@@ -442,6 +446,10 @@ except BaseException:
                 
                 inputWrap.remove();
                 promptSpan.innerText = promptText + finalRes + '\n';
+                
+                if (typeof (window as any).Sk !== 'undefined' && (window as any).Sk.hardInterrupt) {
+                    (window as any).Sk.hardInterrupt += (Date.now() - waitStart);
+                }
                 
                 resolve(finalRes);
             };
@@ -761,9 +769,11 @@ class NotebookCore {
     selectedIndices!: number[];
     collabDoc!: any; // ICollaborativeDocument
     collabArray!: any; // ICollaborativeArray
+    isExecuting!: boolean;
 
     constructor(containerId: string, options: any = {}) {
         this.container = document.getElementById(containerId);
+        this.isExecuting = false;
 
         const defaultConfig = {
             widgetId: Math.random().toString(36).substring(2, 10),
@@ -1033,8 +1043,8 @@ class NotebookCore {
         );
         for (let cell of initCells) {
             try {
-                if (typeof (cell as any).runCode === 'function') {
-                    await (cell as any).runCode();
+                if (typeof (cell as any).handleActionClick === 'function') {
+                    await (cell as any).handleActionClick();
                 }
             } catch (err) {
                 console.error("Init cell failed:", err);

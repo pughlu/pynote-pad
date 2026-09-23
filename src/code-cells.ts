@@ -349,8 +349,9 @@ class CodeCellElement extends BaseNotebookCell {
         }
 
         // 1. EXECUTION LOCK: Prevent double-clicks or rapid Shift+Enters from running twice!
-        if (this.isExecuting) return;
+        if (this.isExecuting || (window.notebookCore && window.notebookCore.isExecuting)) return;
         this.isExecuting = true;
+        if (window.notebookCore) window.notebookCore.isExecuting = true;
 
         if (!window.notebookCore.kernel || !window.notebookCore.kernel.isReady) {
             this.outputContent.innerHTML = `<span class="text-orange-500 font-semibold">Kernel is still initializing... Please wait.</span>`;
@@ -395,6 +396,7 @@ class CodeCellElement extends BaseNotebookCell {
             
             // 2. RELEASE LOCK: Execution is entirely finished
             this.isExecuting = false; 
+            if (window.notebookCore) window.notebookCore.isExecuting = false;
         }
     }
     

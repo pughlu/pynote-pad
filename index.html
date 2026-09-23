@@ -32,6 +32,12 @@
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body class="text-slate-800 flex flex-col transition-none layout-inline">
+    <script>
+        if (window.self !== window.top) {
+            document.body.style.overflowY = 'hidden';
+            document.body.style.overflowX = 'hidden';
+        }
+    </script>
 
     <!-- Connection / Status Overlay -->
     <div id="error-modal" class="fixed inset-0 bg-white/80 z-50 flex-col items-center justify-center hidden">
