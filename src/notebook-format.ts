@@ -34,6 +34,9 @@ export class NotebookFormatConverter {
 
             if (data.isHidden) metaObj.hidden = true;
             else delete metaObj.hidden;
+
+            if (data.isInit) metaObj.init = true;
+            else delete metaObj.init;
             
             if (type === 'code') metaObj.lang = 'python';
 
@@ -131,6 +134,7 @@ export class NotebookFormatConverter {
                 let isEditable = true;
                 let isDeletable = true;
                 let isMoveable = true;
+                let isInit = false;
                 
                 const typeMatch = metaRaw.match(/\[([a-zA-Z]+)\]/);
                 if (typeMatch) type = typeMatch[1];
@@ -152,6 +156,7 @@ export class NotebookFormatConverter {
                             if (metaObj.moveable === false) isMoveable = false;
                         }
                         if (metaObj.hidden) isHidden = true;
+                        if (metaObj.init) isInit = true;
                         parsedMeta = metaObj;
                     } catch (e) {
                         console.warn(FORMAT_MESSAGES.invalidMetadata, jsonMatch[1]);
@@ -163,10 +168,10 @@ export class NotebookFormatConverter {
                     isLocked = true;
                 }
                 
-                currentCell = { type, lines: [], isLocked, isHidden, isEditable, isDeletable, isMoveable, isEditing: false, metadata: parsedMeta };
+                currentCell = { type, lines: [], isLocked, isHidden, isEditable, isDeletable, isMoveable, isInit, isEditing: false, metadata: parsedMeta };
             } else {
                 if (!currentCell) {
-                    currentCell = { type: 'code', lines: [], isLocked: false, isHidden: false, isEditable: true, isDeletable: true, isMoveable: true, isEditing: false };
+                    currentCell = { type: 'code', lines: [], isLocked: false, isHidden: false, isEditable: true, isDeletable: true, isMoveable: true, isInit: false, isEditing: false };
                 }
                 currentCell.lines.push(line);
             }

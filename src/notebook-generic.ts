@@ -192,6 +192,8 @@ class SkulptKernel {
     executionHistory!: string[];
     capturingOutput!: boolean;
     currentInputReject!: any;
+    inputCache!: string[];
+    currentInputIndex!: number;
 
     constructor(options: any = {}) {
         this.isReady = false;
@@ -202,10 +204,14 @@ class SkulptKernel {
         this.executionHistory = [];
         this.capturingOutput = true;
         this.currentInputReject = null;
+        this.inputCache = [];
+        this.currentInputIndex = 0;
     }
 
     restart() {
         this.executionHistory = [];
+        this.inputCache = [];
+        this.currentInputIndex = 0;
     }
 
     async init(statusCallback) {
@@ -252,6 +258,7 @@ class SkulptKernel {
         this.currentOutputDiv = targetDiv;
         this.currentOutputCount = 0;
         this.isKilled = false;
+        this.currentInputIndex = 0;
 
         const historyCode = this.executionHistory.join('\n');
         const historyLines = historyCode ? historyCode.split('\n').length + 1 : 0; // +1 for the separator
@@ -392,6 +399,10 @@ except BaseException:
     }
 
     showInputPrompt(promptText: string): Promise<string> {
+        if (this.currentInputIndex < this.inputCache.length) {
+            return Promise.resolve(this.inputCache[this.currentInputIndex++]);
+        }
+
         return new Promise((resolve, reject) => {
             const modal = document.getElementById('pynote-input-modal');
             const form = document.getElementById('pynote-input-form');
@@ -401,7 +412,10 @@ except BaseException:
             if (!modal || !form || !promptLabel || !inputField) {
                 // Fallback to prompt if modal is missing
                 const res = prompt(promptText);
-                resolve(res || '');
+                const finalRes = res || '';
+                this.inputCache.push(finalRes);
+                this.currentInputIndex++;
+                resolve(finalRes);
                 return;
             }
 
@@ -414,7 +428,10 @@ except BaseException:
             const handleSubmit = (e) => {
                 e.preventDefault();
                 cleanup();
-                resolve(inputField.value);
+                const finalRes = inputField.value;
+                this.inputCache.push(finalRes);
+                this.currentInputIndex++;
+                resolve(finalRes);
             };
 
             const cleanup = () => {
@@ -445,6 +462,7 @@ class BaseNotebookCell extends HTMLElement {
     isEditable!: boolean;
     isDeletable!: boolean;
     isMoveable!: boolean;
+    isInit!: boolean;
 
     get effectiveIsLocked() { return (window as any).notebookCore?.options?.ignoreCellLocks ? false : this.isLocked; }
     get effectiveIsEditable() { return (window as any).notebookCore?.options?.ignoreCellLocks ? true : this.isEditable; }
@@ -469,11 +487,12 @@ class BaseNotebookCell extends HTMLElement {
         this.isEditable = true;
         this.isDeletable = true;
         this.isMoveable = true;
+        this.isInit = false;
         this.isHidden = false;
     }
 
     static get observedAttributes() {
-        return ['is-locked', 'is-editable', 'is-deletable', 'is-moveable', 'is-hidden', 'cell-metadata', 'content'];
+        return ['is-locked', 'is-editable', 'is-deletable', 'is-moveable', 'is-hidden', 'is-init', 'cell-metadata', 'content'];
     }
 
     attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null) {
@@ -484,6 +503,7 @@ class BaseNotebookCell extends HTMLElement {
         if (name === 'is-deletable') this.isDeletable = newValue !== 'false';
         if (name === 'is-moveable') this.isMoveable = newValue !== 'false';
         if (name === 'is-hidden') this.isHidden = newValue !== null;
+        if (name === 'is-init') this.isInit = newValue !== null;
         if (name === 'content') this.content = newValue || '';
         if (name === 'cell-metadata') {
             try { this.metadata = newValue ? JSON.parse(newValue) : {}; } catch {}
@@ -985,6 +1005,22 @@ class NotebookCore {
 
         if (status === 'ready') {
             window.dispatchEvent(new CustomEvent('kernel-status-changed', { detail: { isReady: true } }));
+            this.runInitCells();
+        }
+    }
+
+    async runInitCells() {
+        const initCells = Array.from(this.container.children).filter(cell => 
+            cell.tagName.toLowerCase() === 'notebook-code-cell' && (cell as any).isInit
+        );
+        for (let cell of initCells) {
+            try {
+                if (typeof (cell as any).runCode === 'function') {
+                    await (cell as any).runCode();
+                }
+            } catch (err) {
+                console.error("Init cell failed:", err);
+            }
         }
     }
 
