@@ -53,7 +53,7 @@ class MarkdownCellElement extends BaseNotebookCell {
         });
         
         this.editDiv = document.createElement('div');
-        this.editDiv.className = `w-full flex-col ${this.isEditing ? 'flex' : 'hidden'}`;
+        this.editDiv.className = `w-full flex-1 flex-col cm-wrapper ${this.isEditing ? 'flex' : 'hidden'}`;
         
         container.appendChild(this.viewDiv);
         container.appendChild(this.editDiv);
@@ -76,6 +76,8 @@ class MarkdownCellElement extends BaseNotebookCell {
                     },
                     ".cm-content": { minHeight: "3.25rem", padding: "10px 16px 10px 16px", color: "#334155" },
                     "&.cm-focused": { outline: "none" },
+                    "&.cm-focused .cm-cursor": { borderLeftColor: "#3b82f6" },
+                    "&.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "#bfdbfe" },
                     ".cm-gutters": { display: "none" }
                 }),
                 // Shift+Enter keymap
