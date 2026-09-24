@@ -13,8 +13,9 @@ window.MathJaxHelper = {
     }
 };
 
-function renderInteractiveInput(targetDiv: HTMLElement, promptText: string): Promise<string> {
-    return new Promise((resolve) => {
+function renderInteractiveInput(targetDiv: HTMLElement, promptText: string): { promise: Promise<string>, cancel: () => void } {
+    let cancelFn: () => void;
+    const promise = new Promise<string>((resolve, reject) => {
         const promptSpan = document.createElement('span');
         promptSpan.className = 'text-slate-700';
         promptSpan.innerText = promptText;
@@ -41,22 +42,31 @@ function renderInteractiveInput(targetDiv: HTMLElement, promptText: string): Pro
             inputField.onblur = null;
         };
 
-        const handleSubmit = () => {
+        const handleSubmit = (finalRes: string, isCancel: boolean = false) => {
             cleanup();
-            const finalRes = inputField.value;
             inputWrap.remove();
-            promptSpan.innerText = promptText + finalRes + '\n';
-            resolve(finalRes);
+            if (isCancel) {
+                promptSpan.innerText = promptText + '\n';
+                reject(new Error("Input cancelled"));
+            } else {
+                promptSpan.innerText = promptText + finalRes + '\n';
+                resolve(finalRes);
+            }
         };
 
         inputField.onkeydown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                handleSubmit();
+                handleSubmit(inputField.value);
             }
         };
+
+        cancelFn = () => handleSubmit('', true);
     });
+
+    return { promise, cancel: cancelFn! };
 }
+
 
 // --- GLOBAL CONFIGURATION ---
 const USER_MESSAGES = {
@@ -89,6 +99,7 @@ class PyodideWorkerKernel {
     statusCallback!: any;
     interruptBuffer?: Uint8Array;
     inputBuffer?: Int32Array;
+    currentInputCancel?: () => void;
 
     constructor(options: any = {}) {
         this.isReady = false;
@@ -210,7 +221,10 @@ class PyodideWorkerKernel {
             const targetDiv = this.targetDivs[id];
             if (targetDiv) {
                 const promptText = msg.prompt || '';
-                renderInteractiveInput(targetDiv, promptText).then(val => {
+                const { promise, cancel } = renderInteractiveInput(targetDiv, promptText);
+                this.currentInputCancel = cancel;
+                promise.then(val => {
+                    this.currentInputCancel = null;
                     if (this.inputBuffer) {
                         const encoder = new TextEncoder();
                         const encoded = encoder.encode(val);
@@ -223,6 +237,14 @@ class PyodideWorkerKernel {
                     } else {
                         // Fallback if no SharedArrayBuffer
                         this.worker.postMessage({ action: 'STDIN_REPLY', text: val });
+                    }
+                }).catch(() => {
+                    this.currentInputCancel = null;
+                    if (this.inputBuffer) {
+                        this.inputBuffer[0] = 0;
+                        Atomics.notify(this.inputBuffer, 0, 1);
+                    } else {
+                        this.worker.postMessage({ action: 'STDIN_REPLY', text: "" });
                     }
                 });
             }
@@ -242,12 +264,12 @@ class PyodideWorkerKernel {
 
     execute(code, targetDiv) {
         return new Promise((resolve, reject) => {
-            console.log("[PyNote] Executing cell via Pyodide Worker...");
             if (!this.isReady) return reject(USER_MESSAGES.kernelNotReady);
             const execId = this.generateId();
             this.callbacks[execId] = { resolve, reject };
             this.targetDivs[execId] = targetDiv;
             this.currentOutputCounts[execId] = 0;
+            this.writeOutput(execId, "[PyNote] Executing cell via Pyodide Worker...\n", 'text-slate-400 italic text-xs mb-1 block');
             this.worker.postMessage({ id: execId, widgetId: this.widgetId, action: 'EXECUTE', code: code, config: this.options });
         });
     }
@@ -261,6 +283,11 @@ class PyodideWorkerKernel {
     }
 
     interrupt() {
+        if (this.currentInputCancel) {
+            this.currentInputCancel();
+            this.currentInputCancel = null;
+        }
+
         if (this.interruptBuffer) {
             // Signal Pyodide to throw KeyboardInterrupt safely!
             this.interruptBuffer[0] = 2; // SIGINT
@@ -361,8 +388,8 @@ class SkulptKernel {
     }
 
     async execute(code, targetDiv) {
-        console.log("[PyNote] Executing cell via Skulpt Main Thread...");
         this.currentOutputDiv = targetDiv;
+        this.writeOutput("[PyNote] Executing cell via Skulpt Main Thread...\n", 'text-slate-400 italic text-xs mb-1 block');
         this.currentOutputCount = 0;
         this.isKilled = false;
         this.currentInputIndex = 0;
@@ -536,18 +563,18 @@ except BaseException:
                 return;
             }
 
-            renderInteractiveInput(this.currentOutputDiv, promptText).then((finalRes) => {
+            const { promise, cancel } = renderInteractiveInput(this.currentOutputDiv, promptText);
+            
+            promise.then((finalRes) => {
                 this.inputCache.push(finalRes);
                 this.currentInputIndex++;
                 if (typeof (window as any).Sk !== 'undefined' && (window as any).Sk.execStart) {
                     (window as any).Sk.execStart = Date.now();
                 }
                 resolve(finalRes);
-            });
+            }).catch(reject);
 
-            this.currentInputReject = () => {
-                reject(new Error("Input cancelled"));
-            };
+            this.currentInputReject = cancel;
         });
     }
 }
