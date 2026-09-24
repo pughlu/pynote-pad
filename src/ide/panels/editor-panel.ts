@@ -88,11 +88,6 @@ export class EditorPanel implements IDEPanel {
                 if (window.notebookCore?.runAll) window.notebookCore.runAll();
             }
         });
-        const ui = this.container.querySelector('#pynote-kernel-ui');
-        ui?.addEventListener('kernel-change', (e: any) => {
-            this.store.setOption('kernelType', e.detail.kernel);
-        });
-
         // Live typing listener on raw editor textarea
         this.rawTextareaEl.addEventListener('input', () => {
             if (this.currentRenderedViewMode === 'flatfile') {
@@ -138,12 +133,20 @@ export class EditorPanel implements IDEPanel {
                 
                 if ((window as any).notebookCore) {
                     const currentKernel = (window as any).notebookCore.options.kernelType;
-                    (window as any).notebookCore.options = { ...data.options };
-                    (window as any).notebookCore.updateQuestionModeVisibility();
+                    const newKernel = data.options.kernelType;
                     
-                    if (currentKernel !== data.options.kernelType) {
-                        (window as any).notebookCore.switchKernel(data.options.kernelType);
+                    // Do not override a live kernel with 'default'. Only explicitly specified kernels should switch the live running state.
+                    const shouldSwitch = newKernel && newKernel !== 'default' && currentKernel !== newKernel;
+                    
+                    (window as any).notebookCore.options = { ...data.options };
+                    
+                    if (shouldSwitch) {
+                        // Revert the option back before calling switchKernel so it correctly detects a change and triggers restarts
+                        (window as any).notebookCore.options.kernelType = currentKernel;
+                        (window as any).notebookCore.switchKernel(newKernel);
                     }
+                    
+                    (window as any).notebookCore.updateQuestionModeVisibility();
 
                     Array.from((window as any).notebookCore.container.children).forEach((cell: any) => {
                         if (cell.updateView) cell.updateView();
