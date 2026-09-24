@@ -123,6 +123,15 @@ export class IDEStore {
         }
         this.state.files[target] = content; // Keep sync for legacy
         
+        try {
+            const parsed = (window as any).NotebookFormatConverter.deserializeFromFlat(content);
+            if (parsed && parsed.globalConfig) {
+                this.setOptions(parsed.globalConfig);
+            }
+        } catch (e) {
+            // ignore
+        }
+        
         this.bus.emit('file:content-updated', { fileName: target, content });
     }
 
