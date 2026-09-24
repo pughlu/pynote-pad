@@ -275,10 +275,13 @@ class PyodideWorkerKernel {
     }
 
     destroy() {
-        // We do NOT terminate the global worker. Just disconnect to let it survive tab switches.
         this.isReady = false;
         if (this.worker) {
-            // Optional: we don't nullify onmessage because the new kernel instantly overwrites it
+            this.worker.terminate();
+            if (globalPyodideWorker === this.worker) {
+                globalPyodideWorker = null;
+            }
+            this.worker = null;
         }
     }
 
