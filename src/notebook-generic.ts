@@ -1442,6 +1442,9 @@ class NotebookCore {
         if (yMap.get('isDeletable') === false) cell.setAttribute('is-deletable', 'false');
         if (yMap.get('isMoveable') === false) cell.setAttribute('is-moveable', 'false');
         if (yMap.get('isInit')) cell.setAttribute('is-init', '');
+        
+        const isEditing = yMap.has('isEditing') ? yMap.get('isEditing') : (type === 'markdown');
+        if (isEditing) cell.setAttribute('is-editing', '');
 
         const meta: any = { ...(yMap.get('metadata') || {}) };
         const reservedKeys = ['content', 'type', 'isLocked', 'isHidden', 'isEditable', 'isDeletable', 'isMoveable', 'isInit', 'isEditing', 'metadata'];
@@ -1505,7 +1508,7 @@ class NotebookCore {
         cell.setAttribute('cell-type', data.type || 'text');
         cell.setAttribute('content', data.content || '');
         if (data.output) cell.setAttribute('output', data.output);
-        if (data.isEditing) cell.setAttribute('is-editing', '');
+        if (data.isEditing || (data.isEditing === undefined && data.type === 'markdown')) cell.setAttribute('is-editing', '');
         if (data.isLocked) cell.setAttribute('is-locked', '');
         if (data.isHidden) cell.setAttribute('is-hidden', '');
         if (data.isEditable === false) cell.setAttribute('is-editable', 'false');
