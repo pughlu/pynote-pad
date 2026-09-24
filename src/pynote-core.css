@@ -100,7 +100,6 @@ body:not([data-kernel-executing="true"]) .cell-action-btn.is-success {
 body[data-kernel-executing="true"] .cell-action-btn.is-queued {
     opacity: 0.5 !important;
     display: flex !important;
-    background-color: #000000 !important;
 }
 
 /* Hide other cell action buttons by default during execution */
@@ -130,6 +129,17 @@ body[data-kernel-executing="true"] .cell-action-btn:not(.is-running):not(.is-que
     height: 6px;
     background-color: white;
     border-radius: 1px;
+}
+
+/* Kernel not ready state */
+.cell-action-btn.is-not-ready {
+    pointer-events: none;
+    cursor: not-allowed;
+    filter: grayscale(100%);
+}
+
+.group\/cell:hover .cell-action-btn.is-not-ready {
+    opacity: 0.5 !important;
 }
 
 /* Interrupt Button Styles */

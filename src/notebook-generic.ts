@@ -927,7 +927,7 @@ class BaseNotebookCell extends HTMLElement {
             this.actionBtnElement.classList.add('!bg-black', 'is-running');
         } else if (state === 'queued') {
             this.actionBtnElement.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>`;
-            this.actionBtnElement.classList.add('!bg-black', 'is-queued');
+            this.actionBtnElement.classList.add('is-queued');
         } else if (state === 'success') {
             this.actionBtnElement.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>`;
             this.actionBtnElement.classList.add('is-success');
@@ -1000,7 +1000,7 @@ class NotebookCore {
                 ideBtnRunAll.classList.remove('is-executing');
             }
             
-            // Clear success states after 1.5 seconds (allows for 1s hold + 0.5s fade in CSS)
+            // Clear success states after 2 seconds (allows for 1s hold + 0.5s fade in CSS + 0.5s buffer)
             setTimeout(() => {
                 const cells = Array.from(this.container.children);
                 for (const cell of cells) {
@@ -1008,7 +1008,7 @@ class NotebookCore {
                         if ((cell as any).setButtonState) (cell as any).setButtonState('default');
                     }
                 }
-            }, 1500);
+            }, 2000);
         }
     }
 

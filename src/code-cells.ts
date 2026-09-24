@@ -72,9 +72,10 @@ class CodeCellElement extends BaseNotebookCell {
     updateKernelUIState(isReady) {
         if (!this.actionBtnElement) return;
         if (!isReady) {
-            this.actionBtnElement.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
-        } else {
+            this.actionBtnElement.classList.add('is-not-ready');
             this.actionBtnElement.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+        } else {
+            this.actionBtnElement.classList.remove('is-not-ready');
             this.setButtonState('default'); 
         }
     }
