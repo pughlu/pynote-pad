@@ -761,7 +761,7 @@ class BaseNotebookCell extends HTMLElement {
         this.className = 'cell-wrapper relative flex flex-col w-full my-1.5 group/wrapper block box-border';
 
         this.mainBox = document.createElement('div');
-        this.mainBox.className = 'cell-container group/cell relative z-10 bg-white border border-slate-200 rounded-md shadow-sm flex items-stretch transition-all hover:border-slate-300 min-h-[1.75rem] box-border';
+        this.mainBox.className = 'cell-container group/cell relative z-10 bg-white border border-slate-200 rounded-md shadow-sm flex items-stretch transition-all hover:border-slate-300 min-h-[3.25rem] box-border';
 
         this.dragHandle = document.createElement('div');
         this.dragHandle.className = 'drag-handle absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-blue-600 group-hover/cell:bg-blue-400 cursor-grab z-30 rounded-l-md opacity-0 group-hover/cell:opacity-100 transition-all';

@@ -44,7 +44,7 @@ class MarkdownCellElement extends BaseNotebookCell {
         if (this.effectiveIsLocked || !this.effectiveIsEditable) this.isEditing = false;
 
         this.viewDiv = document.createElement('div');
-        this.viewDiv.className = `markdown-body cursor-pointer min-h-[1.75rem] flex-1 ${this.isEditing ? 'hidden' : ''}`;
+        this.viewDiv.className = `markdown-body cursor-pointer min-h-[3.25rem] flex-1 ${this.isEditing ? 'hidden' : ''}`;
 
         this.viewDiv.addEventListener('dblclick', () => {
             if (this.effectiveIsLocked || !this.effectiveIsEditable) return;
