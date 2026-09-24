@@ -295,7 +295,8 @@ export class NavbarPanel implements IDEPanel {
 
             try {
                 const compressed = await IDEStore.compressForURL(this.store.activeContent);
-                const shareUrl = window.location.origin + window.location.pathname + '?nb=' + compressed;
+                const basePath = window.location.pathname.replace(/\/ide(?:\.html)?$/, '/index.html');
+                const shareUrl = window.location.origin + basePath + '?nb=' + compressed;
                 await navigator.clipboard.writeText(shareUrl);
                 btnSpan.innerText = "Link Copied!";
                 setTimeout(() => { btnSpan.innerText = orig; }, 2000);

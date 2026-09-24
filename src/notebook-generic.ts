@@ -1422,7 +1422,7 @@ class NotebookCore {
         if (yMap.get('isMoveable') === false) cell.setAttribute('is-moveable', 'false');
         if (yMap.get('isInit')) cell.setAttribute('is-init', '');
 
-        const meta: any = {};
+        const meta: any = { ...(yMap.get('metadata') || {}) };
         const reservedKeys = ['content', 'type', 'isLocked', 'isHidden', 'isEditable', 'isDeletable', 'isMoveable', 'isInit', 'isEditing', 'metadata'];
         for (const [key, value] of yMap.entries()) {
             if (!reservedKeys.includes(key)) {
