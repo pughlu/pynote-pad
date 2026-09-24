@@ -4,6 +4,10 @@ class MarkdownCellElement extends BaseNotebookCell {
     editDiv!: HTMLDivElement;
     editorView!: any;
 
+    static get observedAttributes() {
+        return [...super.observedAttributes, 'is-editing'];
+    }
+
     connectedCallback() {
         this.isEditing = this.hasAttribute('is-editing');
         super.connectedCallback();
@@ -23,8 +27,12 @@ class MarkdownCellElement extends BaseNotebookCell {
             }
         }
         if (name === 'is-editing') {
-            this.isEditing = this.hasAttribute('is-editing');
-            this.toggleMode();
+            const shouldEdit = this.hasAttribute('is-editing');
+            if (this.isEditing !== shouldEdit) {
+                this.isEditing = shouldEdit;
+                if (!this.isEditing) this.renderMarkdown();
+                this.toggleMode();
+            }
         }
     }
 
@@ -48,12 +56,29 @@ class MarkdownCellElement extends BaseNotebookCell {
 
         this.viewDiv.addEventListener('dblclick', () => {
             if (this.effectiveIsLocked || !this.effectiveIsEditable) return;
-            this.isEditing = true;
-            this.toggleMode();
+            if (!this.isEditing) {
+                this.handleActionClick();
+            }
         });
         
         this.editDiv = document.createElement('div');
         this.editDiv.className = `w-full flex-1 flex-col cm-wrapper ${this.isEditing ? 'flex' : 'hidden'}`;
+
+        this.editDiv.addEventListener('keydown', (e) => {
+            if (e.shiftKey && e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleActionClick();
+            }
+        }, true);
+
+        this.editDiv.addEventListener('click', () => {
+            if (this.editorView && !this.effectiveIsLocked && this.effectiveIsEditable) {
+                if (!this.editorView.hasFocus) {
+                    this.editorView.focus();
+                }
+            }
+        });
         
         container.appendChild(this.viewDiv);
         container.appendChild(this.editDiv);
@@ -117,6 +142,24 @@ class MarkdownCellElement extends BaseNotebookCell {
                 });
             }
 
+            if ((this as any).yMap && typeof (this as any).yMap.getRaw === 'function') {
+                const rawYMap = (this as any).yMap.getRaw();
+                if (rawYMap && typeof rawYMap.observe === 'function') {
+                    rawYMap.observe((event: any) => {
+                        if (event.keysChanged && event.keysChanged.has('isEditing')) {
+                            const newEditing = !!(this as any).yMap.get('isEditing');
+                            if (newEditing !== this.isEditing) {
+                                this.isEditing = newEditing;
+                                if (this.isEditing) this.setAttribute('is-editing', '');
+                                else this.removeAttribute('is-editing');
+                                if (!this.isEditing) this.renderMarkdown();
+                                this.toggleMode();
+                            }
+                        }
+                    });
+                }
+            }
+
             const initialContent = (this as any).yText ? (this as any).yText.toString() : (this.content || '');
             const state = cm6.createEditorState(initialContent, { extensions: customExtensions });
             this.editorView = cm6.createEditorView(state, this.editDiv);
@@ -155,9 +198,9 @@ class MarkdownCellElement extends BaseNotebookCell {
     getActionButtonConfig() {
         if (this.effectiveIsLocked || !this.effectiveIsEditable) return null;
         if (this.isEditing) {
-            return { icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`, title: 'Render Markdown (Shift+Enter)' };
+            return { icon: `<svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`, title: 'Render Markdown (Shift+Enter)' };
         } else {
-            return { icon: `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>`, title: 'Edit Markdown' };
+            return { icon: `<svg class="w-3.5 h-3.5 text-slate-500 hover:text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>`, title: 'Edit Markdown' };
         }
     }
 
@@ -167,9 +210,11 @@ class MarkdownCellElement extends BaseNotebookCell {
         
         if ((this as any).yMap) {
             (this as any).yMap.set('isEditing', this.isEditing);
+        }
+        if (this.isEditing) {
+            this.setAttribute('is-editing', '');
         } else {
-            if (this.isEditing) this.setAttribute('is-editing', '');
-            else this.removeAttribute('is-editing');
+            this.removeAttribute('is-editing');
         }
 
         if (!this.isEditing) this.renderMarkdown();

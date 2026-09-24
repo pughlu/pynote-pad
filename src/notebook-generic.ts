@@ -1443,7 +1443,8 @@ class NotebookCore {
         if (yMap.get('isMoveable') === false) cell.setAttribute('is-moveable', 'false');
         if (yMap.get('isInit')) cell.setAttribute('is-init', '');
         
-        const isEditing = yMap.has('isEditing') ? yMap.get('isEditing') : (type === 'markdown');
+        const hasIsEditing = typeof yMap.has === 'function' ? yMap.has('isEditing') : (yMap.get('isEditing') !== undefined);
+        const isEditing = hasIsEditing ? !!yMap.get('isEditing') : (type === 'markdown');
         if (isEditing) cell.setAttribute('is-editing', '');
 
         const meta: any = { ...(yMap.get('metadata') || {}) };

@@ -14,6 +14,7 @@ export interface ICollaborativeText {
 export interface ICollaborativeMap {
     get(key: string): any;
     set(key: string, value: any): void;
+    has(key: string): boolean;
     keys(): IterableIterator<string>;
     entries(): IterableIterator<[string, any]>;
     getRaw(): any;

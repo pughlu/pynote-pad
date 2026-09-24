@@ -32,6 +32,9 @@ export class YjsMapAdapter implements ICollaborativeMap {
             this.ymap.set(key, value);
         }
     }
+    has(key: string): boolean {
+        return this.ymap.has(key);
+    }
     keys() { return this.ymap.keys(); }
     entries() { return this.ymap.entries(); }
     getRaw() { return this.ymap; }
