@@ -722,6 +722,8 @@ class BaseNotebookCell extends HTMLElement {
 
     disconnectedCallback() {
         if (this.resizeObserver) this.resizeObserver.disconnect();
+        if ((this as any)._resizeMove) document.removeEventListener('mousemove', (this as any)._resizeMove);
+        if ((this as any)._resizeUp) document.removeEventListener('mouseup', (this as any)._resizeUp);
     }
 
     dispatchAction(eventName, detail = {}) {
@@ -800,10 +802,9 @@ class BaseNotebookCell extends HTMLElement {
         this.contentArea = document.createElement('div');
         this.contentArea.className = 'flex-1 relative flex flex-col min-w-0 p-0 box-border min-h-0 scroll-smooth';
 
-        if (this.metadata && this.metadata.maxLines) {
-            const lines = typeof this.metadata.maxLines === 'number' ? this.metadata.maxLines : parseInt(this.metadata.maxLines, 10);
-            const maxPx = lines * 24; // Approximation: 24px per line
-            this.contentArea.style.maxHeight = `${maxPx}px`;
+        if (this.metadata && this.metadata.manualSize) {
+            const size = typeof this.metadata.manualSize === 'number' ? this.metadata.manualSize : parseInt(this.metadata.manualSize, 10);
+            this.contentArea.style.height = `${size}px`;
             this.contentArea.style.overflowY = 'auto';
 
             this.cellTopShadow = document.createElement('div');
@@ -812,7 +813,7 @@ class BaseNotebookCell extends HTMLElement {
             this.cellTopShadow.querySelector('div')!.onclick = () => this.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
             
             this.cellBottomShadow = document.createElement('div');
-            this.cellBottomShadow.className = 'absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white via-white/80 to-transparent opacity-0 transition-opacity z-20 pointer-events-none flex items-end justify-center rounded-b-md';
+            this.cellBottomShadow.className = 'absolute bottom-3 left-0 right-0 h-8 bg-gradient-to-t from-white via-white/80 to-transparent opacity-0 transition-opacity z-20 pointer-events-none flex items-end justify-center rounded-b-md';
             this.cellBottomShadow.innerHTML = `<div class="pointer-events-auto cursor-pointer group/botshadow px-4 py-1" title="Scroll to Bottom"><svg class="w-4 h-4 text-slate-400 group-hover/botshadow:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg></div>`;
             this.cellBottomShadow.querySelector('div')!.onclick = () => this.contentArea.scrollTo({ top: this.contentArea.scrollHeight, behavior: 'smooth' });
 
@@ -840,6 +841,50 @@ class BaseNotebookCell extends HTMLElement {
             contentObserver.observe(this.contentArea, { childList: true, subtree: true, characterData: true });
             
             setTimeout(() => { if (this.checkCellScroll) this.checkCellScroll(); }, 100);
+
+            // Add resize handle
+            const resizeBar = document.createElement('div');
+            resizeBar.className = 'absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex items-center justify-center opacity-0 group-hover/cell:opacity-100 transition-opacity z-30 bg-transparent hover:bg-slate-100/50 rounded-b-md';
+            resizeBar.innerHTML = `<svg width="16" height="4" viewBox="0 0 16 4" class="text-slate-400"><line x1="2" y1="1" x2="14" y2="1" stroke="currentColor" stroke-width="1"></line><line x1="2" y1="3" x2="14" y2="3" stroke="currentColor" stroke-width="1"></line></svg>`;
+            
+            let isResizing = false;
+            let startY = 0;
+            let startHeight = 0;
+
+            const onResizeStart = (e: MouseEvent) => {
+                isResizing = true;
+                startY = e.clientY;
+                startHeight = this.contentArea.clientHeight;
+                document.body.style.cursor = 'ns-resize';
+                e.preventDefault();
+            };
+
+            const onResizeMove = (e: MouseEvent) => {
+                if (!isResizing) return;
+                const newHeight = Math.max(50, startHeight + (e.clientY - startY));
+                this.contentArea.style.height = `${newHeight}px`;
+                if (this.checkCellScroll) this.checkCellScroll();
+                this.dispatchAction('cell-height-changed');
+            };
+
+            const onResizeUp = () => {
+                if (isResizing) {
+                    isResizing = false;
+                    document.body.style.cursor = '';
+                    this.metadata.manualSize = this.contentArea.clientHeight;
+                    this.setAttribute('cell-metadata', JSON.stringify(this.metadata));
+                    this.dispatchAction('cell-content-changed'); 
+                }
+            };
+
+            resizeBar.addEventListener('mousedown', onResizeStart);
+            document.addEventListener('mousemove', onResizeMove);
+            document.addEventListener('mouseup', onResizeUp);
+
+            (this as any)._resizeMove = onResizeMove;
+            (this as any)._resizeUp = onResizeUp;
+
+            this.mainBox.appendChild(resizeBar);
         }
 
         this.toolbar = document.createElement('div');
