@@ -73,7 +73,6 @@ class CodeCellElement extends BaseNotebookCell {
         if (!this.actionBtnElement) return;
         if (!isReady) {
             this.actionBtnElement.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
-            this.actionBtnElement.innerHTML = `<span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>`;
         } else {
             this.actionBtnElement.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
             this.setButtonState('default'); 
@@ -319,7 +318,7 @@ class CodeCellElement extends BaseNotebookCell {
                 this.expandBtnText.innerText = 'collapse';
             } else {
                 this.outputContent.style.maxHeight = `${config.outputCurtailShowLines * config.outputLineHeightPx}px`;
-                this.outputContent.style.overflowY = 'hidden';
+                this.outputContent.style.overflowY = 'auto';
                 this.expandBtnIcon.style.transform = 'rotate(90deg)';
                 this.expandBtnText.innerText = `show all`;
             }
@@ -351,7 +350,9 @@ class CodeCellElement extends BaseNotebookCell {
         // 1. EXECUTION LOCK: Prevent double-clicks or rapid Shift+Enters from running twice!
         if (this.isExecuting || (window.notebookCore && window.notebookCore.isExecuting)) {
             if (window.notebookCore && typeof window.notebookCore.interrupt === 'function') {
-                window.notebookCore.interrupt();
+                if (window.confirm("Code is already running. Click OK to interrupt or Cancel to continue waiting.")) {
+                    window.notebookCore.interrupt();
+                }
             }
             return;
         }

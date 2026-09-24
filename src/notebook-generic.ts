@@ -536,6 +536,10 @@ class BaseNotebookCell extends HTMLElement {
     deleteBtn?: HTMLButtonElement;
 
     metadata?: Record<string, any>;
+    
+    cellTopShadow?: HTMLDivElement;
+    cellBottomShadow?: HTMLDivElement;
+    checkCellScroll?: () => void;
 
     constructor() {
         super();
@@ -687,7 +691,47 @@ class BaseNotebookCell extends HTMLElement {
         this.mainBox.appendChild(this.dragHandle);
 
         this.contentArea = document.createElement('div');
-        this.contentArea.className = 'flex-1 relative flex flex-col min-w-0 p-0 box-border min-h-0';
+        this.contentArea.className = 'flex-1 relative flex flex-col min-w-0 p-0 box-border min-h-0 scroll-smooth';
+
+        if (this.metadata && this.metadata.maxHeight) {
+            this.contentArea.style.maxHeight = typeof this.metadata.maxHeight === 'number' ? `${this.metadata.maxHeight}px` : this.metadata.maxHeight;
+            this.contentArea.style.overflowY = 'auto';
+
+            this.cellTopShadow = document.createElement('div');
+            this.cellTopShadow.className = 'absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white via-white/80 to-transparent opacity-0 transition-opacity z-20 pointer-events-none flex items-start justify-center rounded-t-md';
+            this.cellTopShadow.innerHTML = `<div class="pointer-events-auto cursor-pointer group/topshadow px-4 py-1" title="Scroll to Top"><svg class="w-4 h-4 text-slate-400 group-hover/topshadow:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"></path></svg></div>`;
+            this.cellTopShadow.querySelector('div')!.onclick = () => this.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            this.cellBottomShadow = document.createElement('div');
+            this.cellBottomShadow.className = 'absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white via-white/80 to-transparent opacity-0 transition-opacity z-20 pointer-events-none flex items-end justify-center rounded-b-md';
+            this.cellBottomShadow.innerHTML = `<div class="pointer-events-auto cursor-pointer group/botshadow px-4 py-1" title="Scroll to Bottom"><svg class="w-4 h-4 text-slate-400 group-hover/botshadow:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg></div>`;
+            this.cellBottomShadow.querySelector('div')!.onclick = () => this.contentArea.scrollTo({ top: this.contentArea.scrollHeight, behavior: 'smooth' });
+
+            this.mainBox.appendChild(this.cellTopShadow);
+            this.mainBox.appendChild(this.cellBottomShadow);
+
+            this.checkCellScroll = () => {
+                if (this.contentArea.scrollTop > 0) this.cellTopShadow!.classList.remove('opacity-0');
+                else this.cellTopShadow!.classList.add('opacity-0');
+
+                if (this.contentArea.scrollHeight > this.contentArea.clientHeight && 
+                    Math.ceil(this.contentArea.scrollTop + this.contentArea.clientHeight) < this.contentArea.scrollHeight) {
+                    this.cellBottomShadow!.classList.remove('opacity-0');
+                } else {
+                    this.cellBottomShadow!.classList.add('opacity-0');
+                }
+            };
+
+            this.contentArea.addEventListener('scroll', this.checkCellScroll);
+            
+            const contentObserver = new MutationObserver(() => {
+                setTimeout(this.checkCellScroll!, 10);
+                this.dispatchAction('cell-height-changed');
+            });
+            contentObserver.observe(this.contentArea, { childList: true, subtree: true, characterData: true });
+            
+            setTimeout(() => { if (this.checkCellScroll) this.checkCellScroll(); }, 100);
+        }
 
         this.toolbar = document.createElement('div');
         this.toolbar.className = 'cell-toolbar absolute z-40 flex items-center gap-1 bg-white/95 backdrop-blur-sm shadow-sm border border-slate-200 rounded-md px-1.5 py-0.5 opacity-0 group-hover/cell:opacity-100 transition-all text-xs';
@@ -768,11 +812,14 @@ class BaseNotebookCell extends HTMLElement {
         if (!this.actionBtnElement) return;
         const config = (this as any).getActionButtonConfig();
         if (state === 'running') {
-            this.actionBtnElement.innerHTML = `<span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>`;
+            this.actionBtnElement.innerHTML = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"></rect></svg>`;
+            this.actionBtnElement.classList.add('!bg-black', 'is-running');
         } else if (state === 'success') {
             this.actionBtnElement.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>`;
+            this.actionBtnElement.classList.remove('!bg-black', 'is-running');
         } else if (config) {
             this.actionBtnElement.innerHTML = config.icon;
+            this.actionBtnElement.classList.remove('!bg-black', 'is-running');
         }
     }
 
@@ -809,6 +856,11 @@ class NotebookCore {
     set isExecuting(val: boolean) {
         this._isExecuting = val;
         
+        const ui = document.getElementById('pynote-kernel-ui') as any;
+        if (ui && ui.setStatus) {
+            ui.setStatus(val ? 'running' : (this.kernel?.isReady ? 'ready' : 'loading'));
+        }
+        
         const btnRunAll = document.getElementById('run-all-btn');
         const ideBtnRunAll = document.getElementById('btn-run-all');
         const playIcon = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>`;
@@ -817,11 +869,11 @@ class NotebookCore {
         if (val) {
             document.body.setAttribute('data-kernel-executing', 'true');
             if (btnRunAll) {
-                btnRunAll.innerHTML = `${stopIcon} Stop All`;
+                btnRunAll.innerHTML = `${stopIcon} Interrupt`;
                 btnRunAll.classList.add('is-executing');
             }
             if (ideBtnRunAll) {
-                ideBtnRunAll.innerHTML = `${stopIcon} Stop All`;
+                ideBtnRunAll.innerHTML = `${stopIcon} Interrupt`;
                 ideBtnRunAll.classList.add('is-executing');
             }
         } else {

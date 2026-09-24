@@ -56,27 +56,19 @@ notebook-text-cell[is-hidden] {
     display: none !important;
 }
 
-/* Global Execution State */
-/* Global Execution State */
 body[data-kernel-executing="true"] .cell-action-btn:not(.is-running) {
     opacity: 0.5;
+    pointer-events: none;
+    cursor: not-allowed;
     filter: grayscale(100%);
-}
-
-/* ALL run action buttons morph to a black stop button on hover when kernel is executing */
-body[data-kernel-executing="true"] .cell-action-btn:hover {
     background-color: #000000 !important;
-    cursor: pointer !important;
-    opacity: 1 !important;
-    filter: none !important;
 }
 
-body[data-kernel-executing="true"] .cell-action-btn:hover svg,
-body[data-kernel-executing="true"] .cell-action-btn:hover .animate-spin {
+body[data-kernel-executing="true"] .cell-action-btn:not(.is-running) svg {
     display: none !important;
 }
 
-body[data-kernel-executing="true"] .cell-action-btn:hover::after {
+body[data-kernel-executing="true"] .cell-action-btn:not(.is-running)::after {
     content: '';
     display: block;
     width: 12px;
@@ -85,10 +77,10 @@ body[data-kernel-executing="true"] .cell-action-btn:hover::after {
     border-radius: 2px;
 }
 
-#run-all-btn.is-executing, #btn-run-all.is-executing {
-    background-color: #000000 !important;
-}
-
-#run-all-btn.is-executing:hover, #btn-run-all.is-executing:hover {
-    background-color: #1f2937 !important;
+body[data-kernel-executing="true"] #run-all-btn,
+body[data-kernel-executing="true"] #btn-run-all {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: not-allowed;
+    filter: grayscale(100%);
 }
