@@ -82,7 +82,11 @@ export class EditorPanel implements IDEPanel {
 
         // Toolbar actions
         this.container.querySelector('#btn-run-all')?.addEventListener('click', () => {
-            if (window.notebookCore?.runAll) window.notebookCore.runAll();
+            if (window.notebookCore?.isExecuting) {
+                if (window.notebookCore.interrupt) window.notebookCore.interrupt();
+            } else {
+                if (window.notebookCore?.runAll) window.notebookCore.runAll();
+            }
         });
         const ui = this.container.querySelector('#pynote-kernel-ui');
         ui?.addEventListener('kernel-change', (e: any) => {

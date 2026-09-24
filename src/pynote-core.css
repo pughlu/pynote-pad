@@ -56,12 +56,25 @@ notebook-text-cell[is-hidden] {
     display: none !important;
 }
 
+/* Keep the running cell's stop button always visible */
+body[data-kernel-executing="true"] .cell-action-btn.is-running {
+    opacity: 1 !important;
+    display: flex !important;
+}
+
+/* Hide other cell action buttons by default during execution */
 body[data-kernel-executing="true"] .cell-action-btn:not(.is-running) {
-    opacity: 0.5;
+    opacity: 0 !important;
     pointer-events: none;
-    cursor: not-allowed;
-    filter: grayscale(100%);
     background-color: #000000 !important;
+}
+
+/* Show other cell action buttons on cell hover with alpha, and make them clickable */
+body[data-kernel-executing="true"] .group\/cell:hover .cell-action-btn:not(.is-running) {
+    opacity: 0.5 !important;
+    display: flex !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
 }
 
 body[data-kernel-executing="true"] .cell-action-btn:not(.is-running) svg {
@@ -77,10 +90,15 @@ body[data-kernel-executing="true"] .cell-action-btn:not(.is-running)::after {
     border-radius: 2px;
 }
 
-body[data-kernel-executing="true"] #run-all-btn,
-body[data-kernel-executing="true"] #btn-run-all {
-    opacity: 0.5;
-    pointer-events: none;
-    cursor: not-allowed;
-    filter: grayscale(100%);
+/* Interrupt Button Styles */
+#run-all-btn.is-executing, #btn-run-all.is-executing {
+    background-color: #000000 !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    filter: none !important;
+}
+
+#run-all-btn.is-executing:hover, #btn-run-all.is-executing:hover {
+    background-color: #1f2937 !important;
 }

@@ -68,7 +68,7 @@
                 Share
             </button>
             <div class="w-px h-4 bg-slate-300 mx-1"></div>
-            <button id="run-all-btn" onclick="notebookCore.runAll()" class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+            <button id="run-all-btn" onclick="notebookCore.isExecuting ? notebookCore.interrupt() : notebookCore.runAll()" class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                 Run All
             </button>
         </div>
