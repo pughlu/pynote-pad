@@ -22,6 +22,10 @@ function renderInteractiveInput(targetDiv: HTMLElement, promptText: string): { p
         
         const inputField = document.createElement('input');
         inputField.type = 'text';
+        inputField.spellcheck = false;
+        inputField.autocapitalize = "off";
+        inputField.setAttribute("autocorrect", "off");
+        inputField.setAttribute("autocomplete", "off");
         inputField.className = 'bg-slate-100 border border-slate-300 outline-none font-mono text-sm py-0.5 px-1 rounded ml-1 min-w-[200px] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all';
         
         const inputWrap = document.createElement('span');

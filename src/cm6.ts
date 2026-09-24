@@ -1,12 +1,50 @@
-import { basicSetup } from "codemirror";
 import { EditorState, Extension, Compartment } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { 
+    EditorView, keymap, lineNumbers, highlightActiveLineGutter, 
+    highlightSpecialChars, drawSelection, dropCursor, 
+    rectangularSelection, crosshairCursor, highlightActiveLine, placeholder
+} from "@codemirror/view";
 import { python } from "@codemirror/lang-python";
 import { markdown } from "@codemirror/lang-markdown";
-import { indentUnit } from "@codemirror/language";
-import { indentMore, indentLess } from "@codemirror/commands";
-import { search, openSearchPanel } from "@codemirror/search";
-import { autocompletion, acceptCompletion } from "@codemirror/autocomplete";
+import { 
+    indentUnit, foldGutter, indentOnInput, 
+    syntaxHighlighting, defaultHighlightStyle, 
+    bracketMatching, foldKeymap 
+} from "@codemirror/language";
+import { indentMore, indentLess, history, defaultKeymap, historyKeymap } from "@codemirror/commands";
+import { search, openSearchPanel, highlightSelectionMatches, searchKeymap } from "@codemirror/search";
+import { autocompletion, acceptCompletion, completionKeymap } from "@codemirror/autocomplete";
+import { lintKeymap } from "@codemirror/lint";
+
+// A custom basicSetup that OMITs closeBrackets() and closeBracketsKeymap
+const basicSetup: Extension = (() => [
+    lineNumbers(),
+    highlightActiveLineGutter(),
+    highlightSpecialChars(),
+    history(),
+    foldGutter(),
+    drawSelection(),
+    dropCursor(),
+    EditorState.allowMultipleSelections.of(true),
+    indentOnInput(),
+    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    bracketMatching(),
+    // autocomplete.closeBrackets(), // REMOVED
+    autocompletion(),
+    rectangularSelection(),
+    crosshairCursor(),
+    highlightActiveLine(),
+    highlightSelectionMatches(),
+    keymap.of([
+        // ...autocomplete.closeBracketsKeymap, // REMOVED
+        ...defaultKeymap,
+        ...searchKeymap,
+        ...historyKeymap,
+        ...foldKeymap,
+        ...completionKeymap,
+        ...lintKeymap
+    ])
+])();
 import { customVariableCompletions } from "./cm6-autocomplete";
 import { yCollab } from "y-codemirror.next";
 import * as Y from "yjs";
@@ -39,12 +77,12 @@ export function getAutocompleteExtensions(mode: string = "custom"): Extension[] 
     ];
   }
 
-  if (mode === "full") {
-    return [
-      keymap.of(baseKeymap),
-      autocompletion({ activateOnTyping: true })
-    ];
-  }
+    if (mode === "full") {
+      return [
+        keymap.of(baseKeymap),
+        autocompletion({ activateOnTyping: true })
+      ];
+    }
 
   return [keymap.of(baseKeymap)];
 }
@@ -52,7 +90,11 @@ export function getAutocompleteExtensions(mode: string = "custom"): Extension[] 
 // Unified PyNote Theme to keep CSS minimal
 export const pynoteTheme = EditorView.theme({
     "&": { backgroundColor: "transparent" },
-    ".cm-scroller": { fontFamily: "'Fira Code', monospace", fontSize: "14px" },
+    ".cm-scroller": { 
+        fontFamily: "'Fira Code', monospace", 
+        fontSize: "14px",
+        fontVariantLigatures: "none"
+    },
     "&.cm-focused .cm-cursor": { borderLeftColor: "#3b82f6" },
     "&.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "#bfdbfe" },
     ".cm-activeLine": { backgroundColor: "transparent" },
@@ -98,7 +140,8 @@ export {
   acceptCompletion,
   customVariableCompletions,
   yCollab,
-  Y
+  Y,
+  placeholder
 };
 
 // Also expose onto window.cm6 so any external/Moodle scripts or plugins continue to work seamlessly
@@ -120,6 +163,7 @@ if (typeof window !== 'undefined') {
     getAutocompleteExtensions,
     pynoteTheme,
     createEditorState,
-    createEditorView
+    createEditorView,
+    placeholder
   };
 }

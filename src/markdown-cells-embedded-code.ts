@@ -50,7 +50,12 @@ if (customElements.get('notebook-markdown-cell')) {
                     customExtensions.push(EditorView.theme({
                         ".cm-gutters": { display: "none !important" },
                         "&": { backgroundColor: "#f8fafc" },
-                        ".cm-scroller": { fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "1rem" }
+                        ".cm-scroller": { 
+                            fontFamily: "'Fira Code', monospace", 
+                            fontSize: "14px", 
+                            padding: "1rem",
+                            fontVariantLigatures: "none"
+                        }
                     }));
                 }
 
@@ -129,6 +134,10 @@ if (customElements.get('notebook-markdown-cell')) {
 
         if (window.MathJaxHelper) {
             window.MathJaxHelper.queue(this.viewDiv, () => this.dispatchAction('cell-height-changed'));
+        }
+
+        if (!this.content || this.content.trim() === '') {
+            this.viewDiv.innerHTML = '<span class="text-slate-400 italic">Double-click to edit markdown</span>';
         }
     };
 }

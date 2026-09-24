@@ -29,7 +29,11 @@ class TextCellElement extends BaseNotebookCell {
                 // Transparent theme
                 cm6.EditorView.theme({
                     "&": { backgroundColor: "transparent" },
-                    ".cm-scroller": { fontFamily: "'Fira Code', monospace", fontSize: "14px" },
+                    ".cm-scroller": { 
+                        fontFamily: "'Fira Code', monospace", 
+                        fontSize: "14px",
+                        fontVariantLigatures: "none"
+                    },
                     ".cm-content": { minHeight: "3.25rem", padding: "10px 16px 10px 16px", color: "#334155" },
                     "&.cm-focused": { outline: "none" },
                     ".cm-gutters": { display: "none" }

@@ -63,12 +63,17 @@ class MarkdownCellElement extends BaseNotebookCell {
             
             const customExtensions = [
                 cm6.basicSetup,
+                cm6.placeholder('Enter markdown here...'),
                 cm6.markdown(),
                 cm6.EditorView.lineWrapping,
                 // Transparent theme
                 cm6.EditorView.theme({
                     "&": { backgroundColor: "transparent" },
-                    ".cm-scroller": { fontFamily: "'Fira Code', monospace", fontSize: "14px" },
+                    ".cm-scroller": { 
+                        fontFamily: "'Fira Code', monospace", 
+                        fontSize: "14px",
+                        fontVariantLigatures: "none"
+                    },
                     ".cm-content": { minHeight: "3.25rem", padding: "10px 16px 10px 16px", color: "#334155" },
                     "&.cm-focused": { outline: "none" },
                     ".cm-gutters": { display: "none" }
@@ -101,6 +106,13 @@ class MarkdownCellElement extends BaseNotebookCell {
 
             if ((this as any).yText && (window as any).collabProvider) {
                 customExtensions.push((window as any).collabProvider.createEditorBinding((this as any).yText));
+                
+                (this as any).yText.observe(() => {
+                    this.content = (this as any).yText.toString();
+                    if (!this.isEditing) {
+                        this.renderMarkdown();
+                    }
+                });
             }
 
             const initialContent = (this as any).yText ? (this as any).yText.toString() : (this.content || '');
@@ -131,6 +143,10 @@ class MarkdownCellElement extends BaseNotebookCell {
 
         if (window.MathJaxHelper) {
             window.MathJaxHelper.queue(this.viewDiv, () => this.dispatchAction('cell-height-changed'));
+        }
+
+        if (!this.content || this.content.trim() === '') {
+            this.viewDiv.innerHTML = '<span class="text-slate-400 italic">Double-click to edit markdown</span>';
         }
     }
 
