@@ -366,9 +366,8 @@
                 }
             }
             
-            // Dummy parser just for `deserializeFromFlat`. Real NotebookCore relies on options being passed in constructor.
-            const tempCore = new window.NotebookCore(document.createElement('div'), {});
-            const fallbackCells = tempCore.deserializeFromFlat(initialCode);
+            // Use the globally exposed NotebookFormatConverter
+            const fallbackCells = window.NotebookFormatConverter.deserializeFromFlat(initialCode);
             
             const config = Object.assign({ isReadOnly: false }, fallbackCells.globalConfig || {});
             window.notebookCore = new window.NotebookCore('notebook-container', config);
