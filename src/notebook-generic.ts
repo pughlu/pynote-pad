@@ -793,7 +793,7 @@ class BaseNotebookCell extends HTMLElement {
         this.className = 'cell-wrapper relative flex flex-col w-full my-1.5 group/wrapper block box-border';
 
         this.mainBox = document.createElement('div');
-        this.mainBox.className = 'cell-container group/cell relative bg-white border border-slate-200 rounded-md shadow-sm flex items-stretch transition-all hover:border-slate-300 min-h-[1.75rem] box-border';
+        this.mainBox.className = 'cell-container group/cell relative z-10 bg-white border border-slate-200 rounded-md shadow-sm flex items-stretch transition-all hover:border-slate-300 min-h-[1.75rem] box-border';
 
         this.dragHandle = document.createElement('div');
         this.dragHandle.className = 'drag-handle absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-blue-600 group-hover/cell:bg-blue-400 cursor-grab z-30 rounded-l-md opacity-0 group-hover/cell:opacity-100 transition-all';
@@ -813,7 +813,7 @@ class BaseNotebookCell extends HTMLElement {
             this.cellTopShadow.querySelector('div')!.onclick = () => this.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
             
             this.cellBottomShadow = document.createElement('div');
-            this.cellBottomShadow.className = 'absolute bottom-3 left-0 right-0 h-8 bg-gradient-to-t from-white via-white/80 to-transparent opacity-0 transition-opacity z-20 pointer-events-none flex items-end justify-center rounded-b-md';
+            this.cellBottomShadow.className = 'absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white via-white/80 to-transparent opacity-0 transition-opacity z-20 pointer-events-none flex items-end justify-center rounded-b-md';
             this.cellBottomShadow.innerHTML = `<div class="pointer-events-auto cursor-pointer group/botshadow px-4 py-1" title="Scroll to Bottom"><svg class="w-4 h-4 text-slate-400 group-hover/botshadow:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg></div>`;
             this.cellBottomShadow.querySelector('div')!.onclick = () => this.contentArea.scrollTo({ top: this.contentArea.scrollHeight, behavior: 'smooth' });
 
@@ -844,8 +844,8 @@ class BaseNotebookCell extends HTMLElement {
 
             // Add resize handle
             const resizeBar = document.createElement('div');
-            resizeBar.className = 'absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex items-center justify-center opacity-0 group-hover/cell:opacity-100 transition-opacity z-30 bg-transparent hover:bg-slate-100/50 rounded-b-md';
-            resizeBar.innerHTML = `<svg width="16" height="4" viewBox="0 0 16 4" class="text-slate-400"><line x1="2" y1="1" x2="14" y2="1" stroke="currentColor" stroke-width="1"></line><line x1="2" y1="3" x2="14" y2="3" stroke="currentColor" stroke-width="1"></line></svg>`;
+            resizeBar.className = 'absolute bottom-[-3px] left-0 right-0 h-[6px] cursor-ns-resize z-40 bg-transparent';
+
             
             let isResizing = false;
             let startY = 0;
@@ -922,12 +922,12 @@ class BaseNotebookCell extends HTMLElement {
         this.toolbar.appendChild(this.typeDropdown);
         this.toolbar.appendChild(this.typeSeparator);
         this.toolbar.appendChild(this.deleteBtn);
-        this.contentArea.appendChild(this.toolbar);
+        this.mainBox.appendChild(this.toolbar);
 
         this.actionBtnElement = document.createElement('button');
         this.actionBtnElement.className = 'cell-action-btn absolute z-30 flex items-center justify-center w-7 h-7 text-white bg-blue-500 hover:bg-blue-600 rounded-full shadow-md transition-all opacity-0 hidden group-hover/cell:opacity-100';
         this.actionBtnElement.onclick = () => this.handleActionClick();
-        this.contentArea.appendChild(this.actionBtnElement);
+        this.mainBox.appendChild(this.actionBtnElement);
 
         this.mainBox.appendChild(this.contentArea);
         this.appendChild(this.mainBox);
