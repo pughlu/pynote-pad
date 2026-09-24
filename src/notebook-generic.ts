@@ -1093,6 +1093,11 @@ class NotebookCore {
         const selector = document.getElementById('kernel-selector');
         if (selector) (selector as any).value = newType;
 
+        const ui = document.getElementById('pynote-kernel-ui') as any;
+        if (ui && 'kernel' in ui) {
+            ui.kernel = newType;
+        }
+
         this.restartKernel();
     }
 

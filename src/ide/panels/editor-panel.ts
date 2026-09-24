@@ -137,8 +137,14 @@ export class EditorPanel implements IDEPanel {
                 }
                 
                 if ((window as any).notebookCore) {
+                    const currentKernel = (window as any).notebookCore.options.kernelType;
                     (window as any).notebookCore.options = { ...data.options };
                     (window as any).notebookCore.updateQuestionModeVisibility();
+                    
+                    if (currentKernel !== data.options.kernelType) {
+                        (window as any).notebookCore.switchKernel(data.options.kernelType);
+                    }
+
                     Array.from((window as any).notebookCore.container.children).forEach((cell: any) => {
                         if (cell.updateView) cell.updateView();
                     });
