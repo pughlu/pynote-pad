@@ -111,7 +111,7 @@ class PyodideWorkerKernel {
         try {
             // 1. Re-use or Spawn the global background worker
             if (!globalPyodideWorker) {
-                globalPyodideWorker = new Worker('pyodide-worker.js', { type: 'module' });
+                globalPyodideWorker = new Worker('pyodide-worker.js');
             }
             this.worker = globalPyodideWorker;
 

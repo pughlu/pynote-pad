@@ -1,7 +1,7 @@
 // pyodide-worker.js
 
-// --- THE FIX: Use modern ES module import pointing to pyodide.mjs ---
-import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.mjs";
+// Using importScripts to bypass Safari ES Module COEP bugs
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js");
 
 let pyodide = null;
 let currentExecId = null;
