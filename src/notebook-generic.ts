@@ -42,6 +42,8 @@ class PyodideWorkerKernel {
     maxOutputChars!: number;
     kernelMode!: string;
     statusCallback!: any;
+    interruptBuffer?: Uint8Array;
+    inputBuffer?: Int32Array;
 
     constructor(options: any = {}) {
         this.isReady = false;
@@ -72,12 +74,21 @@ class PyodideWorkerKernel {
             this.worker.onmessage = (e) => this.handleMessage(e.data);
 
             // 3. Send INIT. The worker latch ensures Pyodide is only loaded once.
-            this.worker.postMessage({
+            const initMsg: any = {
                 action: 'INIT',
                 id: 'init',
                 widgetId: this.widgetId,
                 config: this.options
-            });
+            };
+            
+            if (typeof SharedArrayBuffer !== 'undefined') {
+                this.interruptBuffer = new Uint8Array(new SharedArrayBuffer(1));
+                this.inputBuffer = new Int32Array(new SharedArrayBuffer(1024)); // 4KB buffer for input
+                initMsg.interruptBuffer = this.interruptBuffer.buffer;
+                initMsg.inputBuffer = this.inputBuffer.buffer;
+            }
+
+            this.worker.postMessage(initMsg);
 
         } catch (err) {
             console.error("Worker Initialization Error:", err);
@@ -150,6 +161,96 @@ class PyodideWorkerKernel {
             }
         }
 
+        if (type === 'stdin_request') {
+            const targetDiv = this.targetDivs[id];
+            if (targetDiv) {
+                const inputWrap = document.createElement('div');
+                inputWrap.className = 'flex items-center gap-2 mt-1';
+                
+                const inputEl = document.createElement('input');
+                inputEl.type = 'text';
+                inputEl.className = 'flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
+                inputEl.placeholder = 'Waiting for input... (Press Enter)';
+                
+                const submitBtn = document.createElement('button');
+                submitBtn.className = 'px-3 py-1 bg-blue-500 text-white text-sm font-semibold rounded hover:bg-blue-600 transition-colors';
+                submitBtn.innerText = 'Submit';
+
+                const submitInput = () => {
+                    const val = inputEl.value;
+                    inputWrap.remove();
+                    this.writeOutput(id, val + '\n', 'text-blue-600 font-bold');
+                    
+                    if (this.inputBuffer) {
+                        const encoder = new TextEncoder();
+                        const encoded = encoder.encode(val);
+                        const len = Math.min(encoded.length, this.inputBuffer.buffer.byteLength - 4);
+                        const view = new Uint8Array(this.inputBuffer.buffer, 4);
+                        view.set(encoded.subarray(0, len));
+                        
+                        this.inputBuffer[0] = len;
+                        Atomics.notify(this.inputBuffer, 0, 1);
+                    } else {
+                        // Fallback if no SharedArrayBuffer
+                        this.worker.postMessage({ action: 'STDIN_REPLY', text: val });
+                    }
+                };
+
+                inputEl.onkeydown = (e) => { if (e.key === 'Enter') submitInput(); };
+                submitBtn.onclick = submitInput;
+                
+                inputWrap.appendChild(inputEl);
+                inputWrap.appendChild(submitBtn);
+                targetDiv.appendChild(inputWrap);
+                inputEl.focus();
+            }
+        }
+
+        if (type === 'stdin_request') {
+            const targetDiv = this.targetDivs[id];
+            if (targetDiv) {
+                const inputWrap = document.createElement('div');
+                inputWrap.className = 'flex items-center gap-2 mt-1';
+                
+                const inputEl = document.createElement('input');
+                inputEl.type = 'text';
+                inputEl.className = 'flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
+                inputEl.placeholder = 'Waiting for input... (Press Enter)';
+                
+                const submitBtn = document.createElement('button');
+                submitBtn.className = 'px-3 py-1 bg-blue-500 text-white text-sm font-semibold rounded hover:bg-blue-600 transition-colors';
+                submitBtn.innerText = 'Submit';
+
+                const submitInput = () => {
+                    const val = inputEl.value;
+                    inputWrap.remove();
+                    this.writeOutput(id, val + '\n', 'text-blue-600 font-bold');
+                    
+                    if (this.inputBuffer) {
+                        const encoder = new TextEncoder();
+                        const encoded = encoder.encode(val);
+                        const len = Math.min(encoded.length, this.inputBuffer.buffer.byteLength - 4);
+                        const view = new Uint8Array(this.inputBuffer.buffer, 4);
+                        view.set(encoded.subarray(0, len));
+                        
+                        this.inputBuffer[0] = len;
+                        Atomics.notify(this.inputBuffer, 0, 1);
+                    } else {
+                        // Fallback if no SharedArrayBuffer
+                        this.worker.postMessage({ action: 'STDIN_REPLY', text: val });
+                    }
+                };
+
+                inputEl.onkeydown = (e) => { if (e.key === 'Enter') submitInput(); };
+                submitBtn.onclick = submitInput;
+                
+                inputWrap.appendChild(inputEl);
+                inputWrap.appendChild(submitBtn);
+                targetDiv.appendChild(inputWrap);
+                inputEl.focus();
+            }
+        }
+
         if (type === 'success' || type === 'error') {
             if (this.callbacks[id]) {
                 if (type === 'error') this.callbacks[id].reject(error);
@@ -182,6 +283,12 @@ class PyodideWorkerKernel {
     }
 
     interrupt() {
+        if (this.interruptBuffer) {
+            // Signal Pyodide to throw KeyboardInterrupt safely!
+            this.interruptBuffer[0] = 2; // SIGINT
+            return;
+        }
+
         if (this.worker) {
             this.worker.terminate();
             globalPyodideWorker = null;

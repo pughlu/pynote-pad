@@ -7,6 +7,8 @@ let pyodide = null;
 let currentExecId = null;
 let initPromise = null; // Prevents concurrent initializations in Singleton mode
 const namespaces = {};  // Stores isolated globals for each widget
+let interruptBuffer = null;
+let inputBuffer = null;
 
 // Expose a JS function to Python for SVG matplotlib rendering
 self.sendSvg = function(svgStr) {
@@ -28,8 +30,27 @@ self.onmessage = async function(e) {
                 initPromise = (async () => {
                     pyodide = await loadPyodide({
                         stdout: (text) => self.postMessage({ id: currentExecId, type: 'stdout', text }),
-                        stderr: (text) => self.postMessage({ id: currentExecId, type: 'stderr', text })
+                        stderr: (text) => self.postMessage({ id: currentExecId, type: 'stderr', text }),
+                        stdin: () => {
+                            if (!inputBuffer) {
+                                throw new Error("Input requires SharedArrayBuffer which is disabled. Ensure Cross-Origin Isolation headers are set.");
+                            }
+                            self.postMessage({ id: currentExecId, type: 'stdin_request' });
+                            inputBuffer[0] = 0;
+                            Atomics.wait(inputBuffer, 0, 0); // Synchronously pause the worker!
+                            const len = inputBuffer[0];
+                            const text = new TextDecoder().decode(new Uint8Array(inputBuffer.buffer, 4, len));
+                            return text;
+                        }
                     });
+
+                    if (msg.interruptBuffer) {
+                        interruptBuffer = new Uint8Array(msg.interruptBuffer);
+                        pyodide.setInterruptBuffer(interruptBuffer);
+                    }
+                    if (msg.inputBuffer) {
+                        inputBuffer = new Int32Array(msg.inputBuffer);
+                    }
 
                     if (msg.config.preloadMatplotlib) {
                         self.postMessage({ id: msg.id, type: 'status', status: 'packages' }); 

@@ -350,7 +350,7 @@ class CodeCellElement extends BaseNotebookCell {
         // 1. EXECUTION LOCK: Prevent double-clicks or rapid Shift+Enters from running twice!
         if (this.isExecuting || (window.notebookCore && window.notebookCore.isExecuting)) {
             if (window.notebookCore && typeof window.notebookCore.interrupt === 'function') {
-                if (window.confirm("Code is already running. Click OK to interrupt or Cancel to continue waiting.")) {
+                if (window.confirm("Notebook is running.\nPress OK to interrupt code.")) {
                     window.notebookCore.interrupt();
                 }
             }
