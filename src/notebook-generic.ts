@@ -800,8 +800,10 @@ class BaseNotebookCell extends HTMLElement {
         this.contentArea = document.createElement('div');
         this.contentArea.className = 'flex-1 relative flex flex-col min-w-0 p-0 box-border min-h-0 scroll-smooth';
 
-        if (this.metadata && this.metadata.maxHeight) {
-            this.contentArea.style.maxHeight = typeof this.metadata.maxHeight === 'number' ? `${this.metadata.maxHeight}px` : this.metadata.maxHeight;
+        if (this.metadata && this.metadata.maxLines) {
+            const lines = typeof this.metadata.maxLines === 'number' ? this.metadata.maxLines : parseInt(this.metadata.maxLines, 10);
+            const maxPx = lines * 24; // Approximation: 24px per line
+            this.contentArea.style.maxHeight = `${maxPx}px`;
             this.contentArea.style.overflowY = 'auto';
 
             this.cellTopShadow = document.createElement('div');
