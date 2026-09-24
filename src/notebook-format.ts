@@ -219,6 +219,21 @@ export class NotebookFormatConverter {
         
         return result;
     }
+
+    static async compressForURL(text: string): Promise<string> {
+        if (typeof (window as any).LZString === 'undefined') {
+            throw new Error("LZString library not loaded");
+        }
+        return (window as any).LZString.compressToEncodedURIComponent(text);
+    }
+
+    static async decompressFromURL(base64UrlSafe: string): Promise<string | null> {
+        if (typeof (window as any).LZString === 'undefined') {
+            console.error("LZString library not loaded");
+            return null;
+        }
+        return (window as any).LZString.decompressFromEncodedURIComponent(base64UrlSafe);
+    }
 }
 
 window.NotebookFormatConverter = NotebookFormatConverter;

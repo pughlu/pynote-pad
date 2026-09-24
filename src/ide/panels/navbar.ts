@@ -296,9 +296,16 @@ export class NavbarPanel implements IDEPanel {
             try {
                 const compressed = await IDEStore.compressForURL(this.store.activeContent);
                 const basePath = window.location.pathname.replace(/\/ide(?:\.html)?$/, '/index.html');
-                const shareUrl = window.location.origin + basePath + '?nb=' + compressed;
-                await navigator.clipboard.writeText(shareUrl);
-                btnSpan.innerText = "Link Copied!";
+                const shareUrl = window.location.origin + basePath + '#c=' + compressed;
+                
+                try {
+                    await navigator.clipboard.writeText(shareUrl);
+                    btnSpan.innerText = "Link Copied!";
+                } catch (clipErr) {
+                    prompt("Clipboard access denied (likely insecure context). Copy this link:", shareUrl);
+                    btnSpan.innerText = "Link Generated!";
+                }
+                
                 setTimeout(() => { btnSpan.innerText = orig; }, 2000);
             } catch (err) {
                 console.error("Compression Error:", err);
