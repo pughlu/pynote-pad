@@ -56,32 +56,74 @@ notebook-text-cell[is-hidden] {
     display: none !important;
 }
 
+@keyframes braille-spin {
+    0% { content: "⠋"; }
+    10% { content: "⠙"; }
+    20% { content: "⠹"; }
+    30% { content: "⠸"; }
+    40% { content: "⠼"; }
+    50% { content: "⠴"; }
+    60% { content: "⠦"; }
+    70% { content: "⠧"; }
+    80% { content: "⠇"; }
+    90% { content: "⠏"; }
+    100% { content: "⠋"; }
+}
+.braille-spinner::before {
+    content: "⠋";
+    animation: braille-spin 1s linear infinite;
+    display: inline-block;
+    width: 1em;
+    text-align: center;
+}
+
 /* Keep the running cell's stop button always visible */
 body[data-kernel-executing="true"] .cell-action-btn.is-running {
     opacity: 1 !important;
     display: flex !important;
 }
 
+/* Keep the successful cell's checkmark always visible during execution */
+body[data-kernel-executing="true"] .cell-action-btn.is-success {
+    opacity: 1 !important;
+    display: flex !important;
+}
+
+/* When execution finishes, hold the success checkmark for 1s, then fade out */
+body:not([data-kernel-executing="true"]) .cell-action-btn.is-success {
+    opacity: 0 !important;
+    display: flex !important;
+    transition: opacity 0.5s ease-in-out 1s, background-color 0.2s, transform 0.2s !important;
+}
+
+/* Keep queued cells always visible, but greyed out */
+body[data-kernel-executing="true"] .cell-action-btn.is-queued {
+    opacity: 0.5 !important;
+    display: flex !important;
+    background-color: #000000 !important;
+}
+
 /* Hide other cell action buttons by default during execution */
-body[data-kernel-executing="true"] .cell-action-btn:not(.is-running) {
+body[data-kernel-executing="true"] .cell-action-btn:not(.is-running):not(.is-queued):not(.is-success) {
     opacity: 0 !important;
     pointer-events: none;
     background-color: #000000 !important;
 }
 
 /* Show other cell action buttons on cell hover with alpha, and make them clickable */
-body[data-kernel-executing="true"] .group\/cell:hover .cell-action-btn:not(.is-running) {
+body[data-kernel-executing="true"] .group\/cell:hover .cell-action-btn:not(.is-running):not(.is-queued):not(.is-success) {
     opacity: 0.5 !important;
     display: flex !important;
     pointer-events: auto !important;
     cursor: pointer !important;
 }
 
-body[data-kernel-executing="true"] .cell-action-btn:not(.is-running) svg {
+/* Draw custom stop icon for other non-running, non-queued, non-success cells */
+body[data-kernel-executing="true"] .cell-action-btn:not(.is-running):not(.is-queued):not(.is-success) svg {
     display: none !important;
 }
 
-body[data-kernel-executing="true"] .cell-action-btn:not(.is-running)::after {
+body[data-kernel-executing="true"] .cell-action-btn:not(.is-running):not(.is-queued):not(.is-success)::after {
     content: '';
     display: block;
     width: 6px;

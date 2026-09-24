@@ -381,7 +381,6 @@ class CodeCellElement extends BaseNotebookCell {
         try {
             await window.notebookCore.kernel.execute(this.content, this.outputContent);
             this.setButtonState('success');
-            setTimeout(() => this.setButtonState('default'), 2000);
         } catch (err: any) {
             let errStr = err.toString();
             if (errStr.includes("Kernel restarted...")) {

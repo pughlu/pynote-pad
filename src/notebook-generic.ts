@@ -918,15 +918,21 @@ class BaseNotebookCell extends HTMLElement {
     setButtonState(state) {
         if (!this.actionBtnElement) return;
         const config = (this as any).getActionButtonConfig();
+        
+        this.actionBtnElement.classList.remove('is-running', 'is-queued', 'is-success');
+        this.actionBtnElement.classList.remove('!bg-black', '!bg-transparent');
+        
         if (state === 'running') {
             this.actionBtnElement.innerHTML = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"></rect></svg>`;
             this.actionBtnElement.classList.add('!bg-black', 'is-running');
+        } else if (state === 'queued') {
+            this.actionBtnElement.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>`;
+            this.actionBtnElement.classList.add('!bg-black', 'is-queued');
         } else if (state === 'success') {
             this.actionBtnElement.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>`;
-            this.actionBtnElement.classList.remove('!bg-black', 'is-running');
+            this.actionBtnElement.classList.add('is-success');
         } else if (config) {
             this.actionBtnElement.innerHTML = config.icon;
-            this.actionBtnElement.classList.remove('!bg-black', 'is-running');
         }
     }
 
@@ -993,6 +999,16 @@ class NotebookCore {
                 ideBtnRunAll.innerHTML = `${playIcon} Run All`;
                 ideBtnRunAll.classList.remove('is-executing');
             }
+            
+            // Clear success states after 1.5 seconds (allows for 1s hold + 0.5s fade in CSS)
+            setTimeout(() => {
+                const cells = Array.from(this.container.children);
+                for (const cell of cells) {
+                    if ((cell as any).actionBtnElement && (cell as any).actionBtnElement.classList.contains('is-success')) {
+                        if ((cell as any).setButtonState) (cell as any).setButtonState('default');
+                    }
+                }
+            }, 1500);
         }
     }
 
@@ -1525,13 +1541,22 @@ class NotebookCore {
             (this.kernel as any).restart();
         }
         const cells = Array.from(this.container.children);
+        const codeCellsToRun = [];
+        
         for (const cell of cells) {
             if (cell.tagName.toLowerCase() === 'notebook-code-cell') {
-                if ((cell as any).refresh) (cell as any).refresh();
                 const content = (cell as any).editorView ? (cell as any).editorView.state.doc.toString() : (cell as any).content;
-                if (!content || content.trim() === '') continue;
-                if ((cell as any).handleActionClick) await (cell as any).handleActionClick();
+                if (content && content.trim() !== '') {
+                    codeCellsToRun.push(cell);
+                    if ((cell as any).setButtonState) (cell as any).setButtonState('queued');
+                }
             }
+        }
+        
+        for (const cell of codeCellsToRun) {
+            if ((cell as any).refresh) (cell as any).refresh();
+            if ((cell as any).handleActionClick) await (cell as any).handleActionClick();
+            // handleActionClick will set the state to running, and then reset to default on success/failure!
         }
     }
 
