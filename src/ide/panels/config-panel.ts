@@ -50,6 +50,7 @@ export class ConfigPanel implements IDEPanel {
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">Execution Kernel</label>
                                 <select id="config-kernel" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded p-1.5 outline-none focus:ring-1 focus:ring-blue-500">
+                                    <option value="default">Default</option>
                                     <option value="skulpt">Skulpt (Fast)</option>
                                     <option value="pyodide">Pyodide (Full CPython)</option>
                                 </select>
@@ -225,7 +226,17 @@ export class ConfigPanel implements IDEPanel {
     private bindEvents(): void {
         this.unsubs.push(
             this.bus.on('config:changed', () => this.syncGlobalUI()),
-            this.bus.on('cell:selection-changed', ({ indices }) => this.syncCellUI(indices))
+            this.bus.on('cell:selection-changed', ({ indices }) => this.syncCellUI(indices)),
+            this.bus.on('view:changed', ({ viewMode }) => {
+                const shell = this.container.querySelector('.panel-scroll-shell') as HTMLElement;
+                if (shell) {
+                    if (viewMode === 'flatfile' || viewMode === 'jupyter') {
+                        shell.classList.add('opacity-50', 'pointer-events-none');
+                    } else {
+                        shell.classList.remove('opacity-50', 'pointer-events-none');
+                    }
+                }
+            })
         );
     }
 
@@ -238,7 +249,7 @@ export class ConfigPanel implements IDEPanel {
             else el.value = val !== undefined ? String(val) : '';
         };
 
-        setVal('kernel', opts.kernelType || 'skulpt');
+        setVal('kernel', opts.kernelType || 'default');
         setVal('autocomplete', opts.autocompleteMode || 'custom');
         setVal('maxwidth', opts.maxWidthChars || 80);
         setVal('topbar', opts.showTopBar !== false);

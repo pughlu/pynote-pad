@@ -358,8 +358,6 @@
             
             document.getElementById('btn-share').classList.remove('hidden');
 
-            window.notebookCore = new window.NotebookCore('notebook-container', { isReadOnly: false });
-            
             let initialCode = '# %% [code]\nprint("Standalone Mode")';
             if (window.location.hash.startsWith('#c=')) {
                 if (typeof LZString !== 'undefined') {
@@ -368,7 +366,13 @@
                 }
             }
             
-            const fallbackCells = window.notebookCore.deserializeFromFlat(initialCode);
+            // Dummy parser just for `deserializeFromFlat`. Real NotebookCore relies on options being passed in constructor.
+            const tempCore = new window.NotebookCore(document.createElement('div'), {});
+            const fallbackCells = tempCore.deserializeFromFlat(initialCode);
+            
+            const config = Object.assign({ isReadOnly: false }, fallbackCells.globalConfig || {});
+            window.notebookCore = new window.NotebookCore('notebook-container', config);
+            
             window.notebookCore.loadData(fallbackCells);
             unlockWidget();
         }, 1500);

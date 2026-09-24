@@ -16,7 +16,7 @@ print("Hello World!")`;
 
 const DEFAULT_OPTIONS: IDEOptions = {
     showTopBar: true,
-    kernelType: 'skulpt',
+    kernelType: 'default',
     autocompleteMode: 'custom',
     showShareButton: false,
     lockKernel: false,

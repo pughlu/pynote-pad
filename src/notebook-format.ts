@@ -65,7 +65,7 @@ export class NotebookFormatConverter {
         let headerStr = '# %% [pynote-start]\n';
         if (cells.globalConfig && Object.keys(cells.globalConfig).length > 0) {
             const defaults = {
-                showTopBar: true, kernelType: 'skulpt', autocompleteMode: 'custom', showShareButton: false,
+                showTopBar: true, kernelType: 'default', autocompleteMode: 'custom', showShareButton: false,
                 lockKernel: false, questionMode: false, isReadOnly: false, disableInsertAll: false,
                 disableDelete: false, disableMove: false, lockAllMarkdown: false, maxWidthChars: 80
             };

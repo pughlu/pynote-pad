@@ -1120,7 +1120,7 @@ class NotebookCore {
 
         const ui = document.getElementById('pynote-kernel-ui') as any;
         if (ui) {
-            ui.kernel = this.options.kernelType;
+            ui.kernel = this.options.kernelType === 'skulpt' ? 'skulpt' : 'pyodide';
             ui.disabled = !!this.options.lockKernel;
             ui.addEventListener('kernel-change', (e: any) => this.switchKernel(e.detail.kernel));
             ui.addEventListener('kernel-restart', () => this.restartKernel());
