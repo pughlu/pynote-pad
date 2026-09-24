@@ -15,6 +15,19 @@ self.sendSvg = function(svgStr) {
     self.postMessage({ id: currentExecId, type: 'svg', data: svgStr });
 };
 
+// Expose a JS function to Python for interactive input()
+self.custom_input_prompt = function(promptText) {
+    if (!inputBuffer) {
+        throw new Error("Input requires SharedArrayBuffer which is disabled. Ensure Cross-Origin Isolation headers are set.");
+    }
+    self.postMessage({ id: currentExecId, type: 'stdin_prompt', prompt: promptText });
+    inputBuffer[0] = 0;
+    Atomics.wait(inputBuffer, 0, 0); // Synchronously pause the worker!
+    const len = inputBuffer[0];
+    const text = new TextDecoder().decode(new Uint8Array(inputBuffer.buffer, 4, len));
+    return text;
+};
+
 self.onmessage = async function(e) {
     const msg = e.data;
     
@@ -51,6 +64,14 @@ self.onmessage = async function(e) {
                     if (msg.inputBuffer) {
                         inputBuffer = new Int32Array(msg.inputBuffer);
                     }
+
+                    await pyodide.runPythonAsync(`
+import builtins
+import js
+def _custom_input(prompt=""):
+    return js.custom_input_prompt(prompt)
+builtins.input = _custom_input
+                    `);
 
                     if (msg.config.preloadMatplotlib) {
                         self.postMessage({ id: msg.id, type: 'status', status: 'packages' }); 
@@ -94,6 +115,7 @@ plt.show = _custom_show
     } 
     else if (msg.action === 'EXECUTE') {
         currentExecId = msg.id;
+        console.log("[PyNote Web Worker] Executing cell inside Pyodide Web Worker...");
         
         if (!namespaces[widgetId]) {
             namespaces[widgetId] = pyodide.globals.get('dict')();

@@ -13,6 +13,51 @@ window.MathJaxHelper = {
     }
 };
 
+function renderInteractiveInput(targetDiv: HTMLElement, promptText: string): Promise<string> {
+    return new Promise((resolve) => {
+        const promptSpan = document.createElement('span');
+        promptSpan.className = 'text-slate-700';
+        promptSpan.innerText = promptText;
+        
+        const inputField = document.createElement('input');
+        inputField.type = 'text';
+        inputField.className = 'bg-slate-100 border border-slate-300 outline-none font-mono text-sm py-0.5 px-1 rounded ml-1 min-w-[200px] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all';
+        
+        const inputWrap = document.createElement('span');
+        inputWrap.className = 'inline-flex items-center';
+        inputWrap.appendChild(inputField);
+
+        targetDiv.appendChild(promptSpan);
+        targetDiv.appendChild(inputWrap);
+        
+        if (targetDiv.parentElement) {
+            targetDiv.parentElement.scrollTop = targetDiv.parentElement.scrollHeight;
+        }
+
+        inputField.focus();
+
+        const cleanup = () => {
+            inputField.onkeydown = null;
+            inputField.onblur = null;
+        };
+
+        const handleSubmit = () => {
+            cleanup();
+            const finalRes = inputField.value;
+            inputWrap.remove();
+            promptSpan.innerText = promptText + finalRes + '\n';
+            resolve(finalRes);
+        };
+
+        inputField.onkeydown = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSubmit();
+            }
+        };
+    });
+}
+
 // --- GLOBAL CONFIGURATION ---
 const USER_MESSAGES = {
     kernelStarting: "Starting...",
@@ -161,26 +206,11 @@ class PyodideWorkerKernel {
             }
         }
 
-        if (type === 'stdin_request') {
+        if (type === 'stdin_request' || type === 'stdin_prompt') {
             const targetDiv = this.targetDivs[id];
             if (targetDiv) {
-                const inputWrap = document.createElement('div');
-                inputWrap.className = 'flex items-center gap-2 mt-1';
-                
-                const inputEl = document.createElement('input');
-                inputEl.type = 'text';
-                inputEl.className = 'flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
-                inputEl.placeholder = 'Waiting for input... (Press Enter)';
-                
-                const submitBtn = document.createElement('button');
-                submitBtn.className = 'px-3 py-1 bg-blue-500 text-white text-sm font-semibold rounded hover:bg-blue-600 transition-colors';
-                submitBtn.innerText = 'Submit';
-
-                const submitInput = () => {
-                    const val = inputEl.value;
-                    inputWrap.remove();
-                    this.writeOutput(id, val + '\n', 'text-blue-600 font-bold');
-                    
+                const promptText = msg.prompt || '';
+                renderInteractiveInput(targetDiv, promptText).then(val => {
                     if (this.inputBuffer) {
                         const encoder = new TextEncoder();
                         const encoded = encoder.encode(val);
@@ -194,60 +224,7 @@ class PyodideWorkerKernel {
                         // Fallback if no SharedArrayBuffer
                         this.worker.postMessage({ action: 'STDIN_REPLY', text: val });
                     }
-                };
-
-                inputEl.onkeydown = (e) => { if (e.key === 'Enter') submitInput(); };
-                submitBtn.onclick = submitInput;
-                
-                inputWrap.appendChild(inputEl);
-                inputWrap.appendChild(submitBtn);
-                targetDiv.appendChild(inputWrap);
-                inputEl.focus();
-            }
-        }
-
-        if (type === 'stdin_request') {
-            const targetDiv = this.targetDivs[id];
-            if (targetDiv) {
-                const inputWrap = document.createElement('div');
-                inputWrap.className = 'flex items-center gap-2 mt-1';
-                
-                const inputEl = document.createElement('input');
-                inputEl.type = 'text';
-                inputEl.className = 'flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
-                inputEl.placeholder = 'Waiting for input... (Press Enter)';
-                
-                const submitBtn = document.createElement('button');
-                submitBtn.className = 'px-3 py-1 bg-blue-500 text-white text-sm font-semibold rounded hover:bg-blue-600 transition-colors';
-                submitBtn.innerText = 'Submit';
-
-                const submitInput = () => {
-                    const val = inputEl.value;
-                    inputWrap.remove();
-                    this.writeOutput(id, val + '\n', 'text-blue-600 font-bold');
-                    
-                    if (this.inputBuffer) {
-                        const encoder = new TextEncoder();
-                        const encoded = encoder.encode(val);
-                        const len = Math.min(encoded.length, this.inputBuffer.buffer.byteLength - 4);
-                        const view = new Uint8Array(this.inputBuffer.buffer, 4);
-                        view.set(encoded.subarray(0, len));
-                        
-                        this.inputBuffer[0] = len;
-                        Atomics.notify(this.inputBuffer, 0, 1);
-                    } else {
-                        // Fallback if no SharedArrayBuffer
-                        this.worker.postMessage({ action: 'STDIN_REPLY', text: val });
-                    }
-                };
-
-                inputEl.onkeydown = (e) => { if (e.key === 'Enter') submitInput(); };
-                submitBtn.onclick = submitInput;
-                
-                inputWrap.appendChild(inputEl);
-                inputWrap.appendChild(submitBtn);
-                targetDiv.appendChild(inputWrap);
-                inputEl.focus();
+                });
             }
         }
 
@@ -265,6 +242,7 @@ class PyodideWorkerKernel {
 
     execute(code, targetDiv) {
         return new Promise((resolve, reject) => {
+            console.log("[PyNote] Executing cell via Pyodide Worker...");
             if (!this.isReady) return reject(USER_MESSAGES.kernelNotReady);
             const execId = this.generateId();
             this.callbacks[execId] = { resolve, reject };
@@ -383,6 +361,7 @@ class SkulptKernel {
     }
 
     async execute(code, targetDiv) {
+        console.log("[PyNote] Executing cell via Skulpt Main Thread...");
         this.currentOutputDiv = targetDiv;
         this.currentOutputCount = 0;
         this.isKilled = false;
@@ -545,7 +524,6 @@ except BaseException:
         }
 
         return new Promise((resolve, reject) => {
-            const waitStart = Date.now();
             if (!this.currentOutputDiv) {
                 const res = prompt(promptText);
                 const finalRes = res || '';
@@ -558,60 +536,16 @@ except BaseException:
                 return;
             }
 
-            const promptSpan = document.createElement('span');
-            promptSpan.className = 'text-slate-700';
-            promptSpan.innerText = promptText;
-            
-            const inputField = document.createElement('input');
-            inputField.type = 'text';
-            inputField.className = 'bg-slate-100 border border-slate-300 outline-none font-mono text-sm py-0.5 px-1 rounded ml-1 min-w-[200px] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all';
-            
-            const inputWrap = document.createElement('span');
-            inputWrap.className = 'inline-flex items-center';
-            inputWrap.appendChild(inputField);
-
-            this.currentOutputDiv.appendChild(promptSpan);
-            this.currentOutputDiv.appendChild(inputWrap);
-            
-            if (this.currentOutputDiv.parentElement) {
-                this.currentOutputDiv.parentElement.scrollTop = this.currentOutputDiv.parentElement.scrollHeight;
-            }
-
-            inputField.focus();
-
-            const handleSubmit = () => {
-                cleanup();
-                const finalRes = inputField.value;
+            renderInteractiveInput(this.currentOutputDiv, promptText).then((finalRes) => {
                 this.inputCache.push(finalRes);
                 this.currentInputIndex++;
-                
-                inputWrap.remove();
-                promptSpan.innerText = promptText + finalRes + '\n';
-                
                 if (typeof (window as any).Sk !== 'undefined' && (window as any).Sk.execStart) {
                     (window as any).Sk.execStart = Date.now();
                 }
-                
                 resolve(finalRes);
-            };
+            });
 
-            const handleKeyDown = (e: KeyboardEvent) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleSubmit();
-                }
-            };
-
-            const cleanup = () => {
-                inputField.removeEventListener('keydown', handleKeyDown);
-                this.currentInputReject = null;
-            };
-
-            inputField.addEventListener('keydown', handleKeyDown);
-            
             this.currentInputReject = () => {
-                cleanup();
-                inputWrap.remove();
                 reject(new Error("Input cancelled"));
             };
         });
@@ -1140,8 +1074,10 @@ class NotebookCore {
     // --- NEW: Dynamic Kernel Initialization ---
     initKernel() {
         if (this.options.kernelType === 'skulpt') {
+            console.log("[PyNote] Initializing Skulpt Kernel");
             this.kernel = new SkulptKernel(this.options);
         } else {
+            console.log("[PyNote] Initializing Pyodide Kernel");
             this.kernel = new PyodideWorkerKernel(this.options);
         }
         this.kernel.init((status) => this.updateKernelStatus(status));
@@ -1151,6 +1087,7 @@ class NotebookCore {
     switchKernel(newType) {
         if (this.options.lockKernel) return;
         if (this.options.kernelType === newType) return;
+        console.log(`[PyNote] Switching Kernel to: ${newType}`);
         this.options.kernelType = newType;
 
         const selector = document.getElementById('kernel-selector');
