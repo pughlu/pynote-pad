@@ -33,6 +33,8 @@ interface NotebookConfig {
     disableTypeChange?: boolean;
     layout?: string;
     autocompleteMode?: string;
+    showExecutionNumbers?: boolean;
+    collabProvider?: any;
 }
 
 interface CellData {
@@ -51,10 +53,10 @@ interface MathJaxConfig {
 interface Window {
     MathJaxHelper: any;
     MathJax: MathJaxConfig;
-    BaseNotebookCell: typeof BaseNotebookCell;
-    NotebookCore: typeof NotebookCore;
-    NotebookFormatConverter: typeof NotebookFormatConverter;
-    notebookCore: NotebookCore;
+    BaseNotebookCell: any;
+    NotebookCore: any;
+    NotebookFormatConverter: any;
+    notebookCore: any;
     triggerHostSync: (content: string) => void;
     MarkdownWidgetRegistry: any;
 }

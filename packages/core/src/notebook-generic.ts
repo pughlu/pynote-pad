@@ -151,7 +151,7 @@ export class KernelOutputAdapter {
         wrap.className = 'inline-block bg-white my-2 p-2 rounded shadow-sm border border-slate-200';
         wrap.innerHTML = svgData;
         const svgEl = wrap.querySelector('svg');
-        if (svgEl) { (svgEl as HTMLElement).style.maxWidth = '100%'; (svgEl as HTMLElement).style.height = 'auto'; }
+        if (svgEl) { (svgEl as unknown as HTMLElement).style.maxWidth = '100%'; (svgEl as unknown as HTMLElement).style.height = 'auto'; }
         this.targetDiv.appendChild(wrap);
     }
 }
@@ -160,6 +160,7 @@ class PyodideWorkerKernel {
     isReady!: boolean;
     worker!: Worker | null;
     callbacks!: any;
+    adapters: { [key: string]: any } = {};
     targetDivs!: any;
     currentOutputCounts!: any;
     options!: any;
@@ -362,6 +363,7 @@ class PyodideWorkerKernel {
 // --- NEW: SKULPT KERNEL ADAPTER ---
 class SkulptKernel {
     isReady!: boolean;
+    currentOutputDiv: HTMLElement | null = null;
     adapter!: KernelOutputAdapter;
     maxOutputChars!: number;
     currentOutputCount!: number;
@@ -611,7 +613,7 @@ except BaseException:
     }
 }
 
-class BaseNotebookCell extends HTMLElement {
+export class BaseNotebookCell extends HTMLElement {
     _initialized!: boolean;
     actionBtnElement!: HTMLButtonElement | null;
     resizeObserver!: ResizeObserver | null;
@@ -1004,6 +1006,7 @@ class BaseNotebookCell extends HTMLElement {
 window.BaseNotebookCell = BaseNotebookCell;
 
 class NotebookCore {
+    topbarUI!: any;
     container!: HTMLElement;
     options!: NotebookConfig;
     isReadOnly!: boolean;

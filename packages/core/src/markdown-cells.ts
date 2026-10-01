@@ -1,3 +1,5 @@
+import { BaseNotebookCell } from './notebook-generic';
+
 class MarkdownCellElement extends BaseNotebookCell {
     isEditing!: boolean;
     viewDiv!: HTMLDivElement;

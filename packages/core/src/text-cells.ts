@@ -1,3 +1,5 @@
+import { BaseNotebookCell } from './notebook-generic';
+
 class TextCellElement extends BaseNotebookCell {
     editorView!: any;
     editDiv!: HTMLDivElement;

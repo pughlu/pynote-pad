@@ -8,6 +8,8 @@ const CELL_MESSAGES = {
     scrollBottom: "Scroll to bottom"
 };
 
+import { BaseNotebookCell } from './notebook-generic';
+
 class CodeCellElement extends BaseNotebookCell {
     output!: string;
     editorWrap!: HTMLDivElement;
