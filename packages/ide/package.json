@@ -1,0 +1,10 @@
+{
+  "name": "@pynote/ide",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@pynote/core": "*",
+    "@azure/msal-browser": "^5.22.0",
+    "lms-widget-manager": "github:pughlu/lms-widget-manager"
+  }
+}

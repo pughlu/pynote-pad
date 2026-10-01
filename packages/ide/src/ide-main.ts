@@ -29,7 +29,6 @@ export class PyNoteIDE {
         this.bus = new EventBus();
         // Initialize Collaboration Provider
         const collabProvider = new YjsProvider();
-        (window as any).collabProvider = collabProvider;
         
         this.store = new IDEStore(this.bus, undefined, undefined, collabProvider);
         

@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('View Synchronization & Preview Mode Constraints', () => {
   test('should synchronize content between Visual Editor and Raw Text views (.pynote.py and .ipynb)', async ({ page }) => {
     // 1. Open IDE
-    await page.goto('/ide.html');
+    await page.goto('/packages/ide/index.html');
     await page.waitForLoadState('networkidle');
 
     const codeCell = page.locator('notebook-code-cell').first();
@@ -48,7 +48,7 @@ test.describe('View Synchronization & Preview Mode Constraints', () => {
   });
 
   test('should respect moveable, editable, and deletable tags in Preview mode', async ({ page }) => {
-    await page.goto('/ide.html');
+    await page.goto('/packages/ide/index.html');
     await page.waitForLoadState('networkidle');
 
     const codeCell = page.locator('notebook-code-cell').first();

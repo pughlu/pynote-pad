@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Cell Config Panel Persistence', () => {
   test('should persist config changes when switching between cells', async ({ page }) => {
     // 1. Open the PyNote IDE
-    await page.goto('/ide.html');
+    await page.goto('/packages/ide/index.html');
 
     // 2. Wait for the editor to load the default cells
     // The default template has a markdown cell and a code cell.

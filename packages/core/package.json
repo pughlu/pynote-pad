@@ -1,0 +1,19 @@
+{
+  "name": "@pynote/core",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/state": "^6.7.5",
+    "@codemirror/view": "^6.43.12",
+    "codemirror": "^6.0.2",
+    "y-codemirror.next": "^0.3.6",
+    "yjs": "^13.6.32"
+  }
+}

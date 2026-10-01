@@ -16,7 +16,7 @@ class MarkdownCellElement extends BaseNotebookCell {
     attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
         super.attributeChangedCallback(name, oldVal, newVal);
         if (name === 'content') {
-            if ((this as any).yText) return; // Yjs drives this
+            if ((this as any).collabText) return; // Collaboration Provider drives this
             if (this.editorView && this.content !== this.editorView.state.doc.toString()) {
                 this.editorView.dispatch({
                     changes: {from: 0, to: this.editorView.state.doc.length, insert: this.content}
@@ -117,7 +117,7 @@ class MarkdownCellElement extends BaseNotebookCell {
                 cm6.EditorView.updateListener.of((update: any) => {
                     if (update.docChanged) {
                         this.content = update.state.doc.toString();
-                        if (!(this as any).yText) {
+                        if (!(this as any).collabText) {
                             this.dispatchAction('cell-content-changed');
                         }
                     }
@@ -131,23 +131,23 @@ class MarkdownCellElement extends BaseNotebookCell {
                 })
             ];
 
-            if ((this as any).yText && (window as any).collabProvider) {
-                customExtensions.push((window as any).collabProvider.createEditorBinding((this as any).yText));
+            if ((this as any).collabText && (window as any).notebookCore?.options?.collabProvider) {
+                customExtensions.push((window as any).notebookCore?.options?.collabProvider.createEditorBinding((this as any).collabText));
                 
-                (this as any).yText.observe(() => {
-                    this.content = (this as any).yText.toString();
+                (this as any).collabText.observe(() => {
+                    this.content = (this as any).collabText.toString();
                     if (!this.isEditing) {
                         this.renderMarkdown();
                     }
                 });
             }
 
-            if ((this as any).yMap && typeof (this as any).yMap.getRaw === 'function') {
-                const rawYMap = (this as any).yMap.getRaw();
+            if ((this as any).collabMap && typeof (this as any).collabMap.getRaw === 'function') {
+                const rawYMap = (this as any).collabMap.getRaw();
                 if (rawYMap && typeof rawYMap.observe === 'function') {
                     rawYMap.observe((event: any) => {
                         if (event.keysChanged && event.keysChanged.has('isEditing')) {
-                            const newEditing = !!(this as any).yMap.get('isEditing');
+                            const newEditing = !!(this as any).collabMap.get('isEditing');
                             if (newEditing !== this.isEditing) {
                                 this.isEditing = newEditing;
                                 if (this.isEditing) this.setAttribute('is-editing', '');
@@ -160,7 +160,7 @@ class MarkdownCellElement extends BaseNotebookCell {
                 }
             }
 
-            const initialContent = (this as any).yText ? (this as any).yText.toString() : (this.content || '');
+            const initialContent = (this as any).collabText ? (this as any).collabText.toString() : (this.content || '');
             const state = cm6.createEditorState(initialContent, { extensions: customExtensions });
             this.editorView = cm6.createEditorView(state, this.editDiv);
         }
@@ -208,8 +208,8 @@ class MarkdownCellElement extends BaseNotebookCell {
         if (this.effectiveIsLocked || !this.effectiveIsEditable) return;
         this.isEditing = !this.isEditing;
         
-        if ((this as any).yMap) {
-            (this as any).yMap.set('isEditing', this.isEditing);
+        if ((this as any).collabMap) {
+            (this as any).collabMap.set('isEditing', this.isEditing);
         }
         if (this.isEditing) {
             this.setAttribute('is-editing', '');
@@ -219,7 +219,7 @@ class MarkdownCellElement extends BaseNotebookCell {
 
         if (!this.isEditing) this.renderMarkdown();
         this.toggleMode();
-        if (!(this as any).yText) {
+        if (!(this as any).collabText) {
             this.dispatchAction('cell-content-changed');
         }
     }

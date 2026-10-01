@@ -10,8 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     
     <!-- 2. PyNote Stylesheets -->
-    <link rel="stylesheet" href="/src/pynote-core.css">
-    <link rel="stylesheet" href="/src/markdown-styles.css">
+    <link rel="stylesheet" href="/packages/core/src/pynote-core.css">
+    <link rel="stylesheet" href="/packages/core/src/markdown-styles.css">
 
     <!-- 3. Third-Party Runtime Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -30,14 +30,14 @@
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
     <!-- 5. PyNote Core Scripts -->
-    <script type="module" src="/src/notebook-format.ts"></script>
-    <script type="module" src="/src/notebook-generic.ts"></script>
-    <script type="module" src="/src/text-cells.ts"></script>
-    <script type="module" src="/src/markdown-cells.ts"></script>
-    <script type="module" src="/src/code-cells.ts"></script>
-    <script type="module" src="/src/markdown-widget-registry.ts"></script>
-    <script type="module" src="/src/plugin-csv.ts"></script>
-    <script type="module" src="/src/markdown-cells-embedded-code.ts"></script>
+    <script type="module" src="/packages/core/src/notebook-format.ts"></script>
+    <script type="module" src="/packages/core/src/notebook-generic.ts"></script>
+    <script type="module" src="/packages/core/src/text-cells.ts"></script>
+    <script type="module" src="/packages/core/src/markdown-cells.ts"></script>
+    <script type="module" src="/packages/core/src/code-cells.ts"></script>
+    <script type="module" src="/packages/core/src/markdown-widget-registry.ts"></script>
+    <script type="module" src="/packages/core/src/plugin-csv.ts"></script>
+    <script type="module" src="/packages/core/src/markdown-cells-embedded-code.ts"></script>
     
     <style>
         /* Split.js Gutter Styling */
@@ -99,6 +99,6 @@
     </div>
 
     <!-- Modular TypeScript IDE Entry Point -->
-    <script type="module" src="/src/ide/ide-main.ts"></script>
+    <script type="module" src="/packages/ide/src/ide-main.ts"></script>
 <!-- Cloudflare Pages Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "505ba7c92e6344dbb466277f48391e0b", "send": {"to": "/cdn-cgi/rum"}}'></script><!-- Cloudflare Pages Analytics --></body>
 </html>

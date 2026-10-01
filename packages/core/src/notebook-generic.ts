@@ -1,3 +1,5 @@
+import './notebook-topbar';
+import './notebook-topbar';
 window.MathJaxHelper = {
     queue: function (el, onComplete, retries = 0) {
         if (window.MathJax && window.MathJax.typesetPromise) {
@@ -90,6 +92,70 @@ const PYODIDE_CDN_URL = "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/";
 
 let globalPyodideWorker: Worker | null = null;
 
+
+export class KernelOutputAdapter {
+    targetDiv: HTMLElement;
+    currentOutputCount: number = 0;
+    maxOutputChars: number = 50000;
+    currentOutputLines: number = 0;
+    maxOutputLines: number = 1000;
+    isKilled: boolean = false;
+    
+    constructor(targetDiv: HTMLElement, maxOutputChars: number = 50000) {
+        this.targetDiv = targetDiv;
+        this.maxOutputChars = maxOutputChars;
+    }
+    
+    write(text: string, type: 'stdout' | 'stderr' | 'system', appendNewline: boolean = false) {
+        if (this.isKilled) return;
+        
+        this.currentOutputCount += text.length;
+        const newLines = (text.match(/\n/g) || []).length + (appendNewline ? 1 : 0);
+        this.currentOutputLines += newLines;
+
+        if (this.currentOutputCount > this.maxOutputChars) {
+            this.isKilled = true;
+            this.writeRaw(`\n[Error: Output exceeded maximum limit of ${this.maxOutputChars} characters]`, 'text-red-500 font-bold block mt-2');
+            throw new Error("Output exceeded limit");
+        }
+        
+        if (this.currentOutputLines > this.maxOutputLines) {
+            this.isKilled = true;
+            this.writeRaw(`\n[Error: Output exceeded maximum limit of ${this.maxOutputLines} lines]`, 'text-red-500 font-bold block mt-2');
+            throw new Error("Output exceeded limit");
+        }
+        
+        let classes = 'text-slate-700';
+        if (type === 'stderr') classes = 'text-red-500 font-semibold';
+        if (type === 'system') classes = 'text-slate-400 italic text-xs mb-1 block';
+        
+        this.writeRaw(text + (appendNewline ? "\n" : ""), classes);
+    }
+    
+    writeRaw(text: string, classes: string) {
+        const span = document.createElement('span');
+        span.className = classes;
+        span.innerText = text;
+        this.targetDiv.appendChild(span);
+    }
+    
+    writeResult(text: string) {
+        const outWrap = document.createElement('div');
+        outWrap.className = 'mt-1 font-mono text-sm text-slate-800';
+        outWrap.innerText = text;
+        this.targetDiv.appendChild(outWrap);
+    }
+    
+    injectSvg(svgData: string) {
+        const wrap = document.createElement('div');
+        wrap.className = 'inline-block bg-white my-2 p-2 rounded shadow-sm border border-slate-200';
+        wrap.innerHTML = svgData;
+        const svgEl = wrap.querySelector('svg');
+        if (svgEl) { (svgEl as HTMLElement).style.maxWidth = '100%'; (svgEl as HTMLElement).style.height = 'auto'; }
+        this.targetDiv.appendChild(wrap);
+    }
+}
+
 class PyodideWorkerKernel {
     isReady!: boolean;
     worker!: Worker | null;
@@ -109,7 +175,7 @@ class PyodideWorkerKernel {
         this.isReady = false;
         this.worker = null;
         this.callbacks = {};
-        this.targetDivs = {};
+        this.adapters = {};
         this.currentOutputCounts = {};
 
         this.options = options;
@@ -158,38 +224,6 @@ class PyodideWorkerKernel {
 
     generateId() { return Math.random().toString(36).substring(2, 10); }
 
-    writeOutput(id, text, classes) {
-        const targetDiv = this.targetDivs[id];
-        if (!targetDiv) return;
-
-        this.currentOutputCounts[id] = (this.currentOutputCounts[id] || 0) + text.length;
-        if (this.currentOutputCounts[id] > this.maxOutputChars) {
-            if (this.currentOutputCounts[id] - text.length <= this.maxOutputChars) {
-                const span = document.createElement('span');
-                span.className = 'text-red-500 font-bold block mt-2';
-                span.innerText = `[Error: Output exceeded maximum limit of ${this.maxOutputChars} characters]`;
-                targetDiv.appendChild(span);
-            }
-            return;
-        }
-
-        const span = document.createElement('span');
-        span.className = classes;
-        span.innerText = text + "\n";
-        targetDiv.appendChild(span);
-    }
-
-    injectSvg(id, svgData) {
-        const targetDiv = this.targetDivs[id];
-        if (!targetDiv) return;
-
-        const wrap = document.createElement('div');
-        wrap.className = 'inline-block bg-white my-2 p-2 rounded shadow-sm border border-slate-200';
-        wrap.innerHTML = svgData;
-        const svgEl = wrap.querySelector('svg');
-        if (svgEl) { svgEl.style.maxWidth = '100%'; svgEl.style.height = 'auto'; }
-        targetDiv.appendChild(wrap);
-    }
 
     handleMessage(msg) {
         const { id, type, status, text, error, data } = msg;
@@ -207,22 +241,25 @@ class PyodideWorkerKernel {
             return;
         }
 
-        if (type === 'stdout') this.writeOutput(id, text, 'text-slate-700');
-        if (type === 'stderr') this.writeOutput(id, text, 'text-red-500 font-semibold');
-        if (type === 'svg') this.injectSvg(id, data);
-
-        if (type === 'result') {
-            const targetDiv = this.targetDivs[id];
-            if (targetDiv) {
-                const outWrap = document.createElement('div');
-                outWrap.className = 'mt-1 font-mono text-sm text-slate-800';
-                outWrap.innerText = text;
-                targetDiv.appendChild(outWrap);
+        const adapter = this.adapters[id];
+        if (!adapter) return;
+        
+        try {
+            if (type === 'stdout') adapter.write(text, 'stdout', true); // Pyodide strips newlines
+            if (type === 'stderr') adapter.write(text, 'stderr', true);
+            if (type === 'svg') adapter.injectSvg(data);
+            if (type === 'result') adapter.writeResult(text);
+        } catch (e) {
+            this.interrupt();
+            if (this.callbacks[id]) {
+                this.callbacks[id].reject(e);
+                delete this.callbacks[id];
             }
+            return;
         }
 
         if (type === 'stdin_request' || type === 'stdin_prompt') {
-            const targetDiv = this.targetDivs[id];
+            const adapter = this.adapters[id]; const targetDiv = adapter ? adapter.targetDiv : null;
             if (targetDiv) {
                 const promptText = msg.prompt || '';
                 const { promise, cancel } = renderInteractiveInput(targetDiv, promptText);
@@ -271,9 +308,9 @@ class PyodideWorkerKernel {
             if (!this.isReady) return reject(USER_MESSAGES.kernelNotReady);
             const execId = this.generateId();
             this.callbacks[execId] = { resolve, reject };
-            this.targetDivs[execId] = targetDiv;
+            this.adapters[execId] = new KernelOutputAdapter(targetDiv, this.maxOutputChars);
             this.currentOutputCounts[execId] = 0;
-            this.writeOutput(execId, "[PyNote] Executing cell via Pyodide Worker...\n", 'text-slate-400 italic text-xs mb-1 block');
+            // this.adapters[execId].write("[PyNote] Executing cell via Pyodide Worker...", 'system', true);
             this.worker.postMessage({ id: execId, widgetId: this.widgetId, action: 'EXECUTE', code: code, config: this.options });
         });
     }
@@ -313,7 +350,7 @@ class PyodideWorkerKernel {
             this.callbacks[id].reject(new Error("KeyboardInterrupt: Kernel restarted..."));
         }
         this.callbacks = {};
-        this.targetDivs = {};
+        this.adapters = {};
         
         // Respawn the worker in the background
         if (this.statusCallback) {
@@ -325,7 +362,7 @@ class PyodideWorkerKernel {
 // --- NEW: SKULPT KERNEL ADAPTER ---
 class SkulptKernel {
     isReady!: boolean;
-    currentOutputDiv!: any;
+    adapter!: KernelOutputAdapter;
     maxOutputChars!: number;
     currentOutputCount!: number;
     isKilled!: boolean;
@@ -337,7 +374,7 @@ class SkulptKernel {
 
     constructor(options: any = {}) {
         this.isReady = false;
-        this.currentOutputDiv = null;
+        this.adapter = null as any;
         this.maxOutputChars = options.maxOutputChars || 50000;
         this.currentOutputCount = 0;
         this.isKilled = false;
@@ -381,24 +418,10 @@ class SkulptKernel {
         });
     }
 
-    writeOutput(text, classes) {
-        if (!this.currentOutputDiv) return;
-        this.currentOutputCount += text.length;
-        if (this.currentOutputCount > this.maxOutputChars) {
-            this.isKilled = true;
-            throw new Error(USER_MESSAGES.outputExceeded);
-        }
-        const span = document.createElement('span');
-        span.className = classes;
-        span.innerText = text;
-        this.currentOutputDiv.appendChild(span);
-    }
-
     async execute(code, targetDiv) {
-        this.currentOutputDiv = targetDiv;
-        this.writeOutput("[PyNote] Executing cell via Skulpt Main Thread...\n", 'text-slate-400 italic text-xs mb-1 block');
+        this.adapter = new KernelOutputAdapter(targetDiv, this.maxOutputChars);
+        // this.adapter.write("[PyNote] Executing cell via Skulpt Main Thread...", 'system', true);
         this.currentOutputCount = 0;
-        this.isKilled = false;
         this.currentInputIndex = 0;
 
         const historyCode = this.executionHistory.join('\n');
@@ -416,7 +439,7 @@ class SkulptKernel {
                         return;
                     }
                 }
-                this.writeOutput(text, 'text-slate-700');
+                this.adapter.write(text, "stdout", false); // Skulpt retains newlines
             },
             inputfun: (promptText) => this.showInputPrompt(promptText),
             read: (x) => {
@@ -495,15 +518,17 @@ except BaseException:
                 const indentedCode = code.split('\n').map(line => '    ' + line).join('\n');
                 this.executionHistory.push(`try:\n${indentedCode}\n    pass\nexcept BaseException:\n    pass`);
             }
-        } catch (err) {
-            if (this.isKilled) throw new Error(USER_MESSAGES.outputExceeded);
+        } catch (err: any) {
+            if (this.adapter && this.adapter.isKilled) throw new Error("Output exceeded limit");
 
             let errStr = err.toString();
             let isFatalError = errStr.includes("SyntaxError") ||
                 errStr.includes("IndentationError") ||
                 errStr.includes("TabError") ||
                 errStr.includes("ParseError") ||
-                errStr.includes("Time limit");
+                errStr.includes("Time limit") ||
+                errStr.includes("Output exceeded limit") ||
+                errStr.includes("KeyboardInterrupt");
 
             if (!isFatalError && code.trim()) {
                 const indentedCode = code.split('\n').map(line => '    ' + line).join('\n');
@@ -527,7 +552,7 @@ except BaseException:
 
             throw new Error(errStr.replace(/<stdin>/g, "line"));
         } finally {
-            this.currentOutputDiv = null;
+            this.adapter = null as any;
         }
     }
 
@@ -758,7 +783,18 @@ class BaseNotebookCell extends HTMLElement {
     }
 
     renderShell() {
-        this.className = 'cell-wrapper relative flex flex-col w-full my-1.5 group/wrapper block box-border';
+        const showExec = (window as any).notebookCore?.options?.showExecutionNumbers;
+        
+        this.className = `cell-wrapper relative flex flex-col w-full my-1.5 group/wrapper block box-border`;
+        
+        if (showExec) {
+            (this as any).lhsGutter = document.createElement('div');
+            (this as any).lhsGutter.className = 'absolute left-0 top-3 w-8 text-right pr-1 font-mono text-[10px] text-slate-400 select-none cursor-default';
+            if (this.cellType === 'code') {
+                (this as any).lhsGutter.innerText = '[ ]';
+            }
+            this.appendChild((this as any).lhsGutter);
+        }
 
         this.mainBox = document.createElement('div');
         this.mainBox.className = 'cell-container group/cell relative z-10 bg-white border border-slate-200 rounded-md shadow-sm flex items-stretch transition-all hover:border-slate-300 min-h-[3.25rem] box-border';
@@ -989,27 +1025,22 @@ class NotebookCore {
             ui.setStatus(val ? 'running' : (this.kernel?.isReady ? 'ready' : 'loading'));
         }
         
-        const btnRunAll = document.getElementById('run-all-btn');
         const ideBtnRunAll = document.getElementById('btn-run-all');
         const playIcon = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>`;
         const stopIcon = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"></rect></svg>`;
 
+        if ((this as any).topbarUI) {
+            (this as any).topbarUI.setExecuting(val);
+        }
+
         if (val) {
             document.body.setAttribute('data-kernel-executing', 'true');
-            if (btnRunAll) {
-                btnRunAll.innerHTML = `${stopIcon} Interrupt`;
-                btnRunAll.classList.add('is-executing');
-            }
             if (ideBtnRunAll) {
                 ideBtnRunAll.innerHTML = `${stopIcon} Interrupt`;
                 ideBtnRunAll.classList.add('is-executing');
             }
         } else {
             document.body.removeAttribute('data-kernel-executing');
-            if (btnRunAll) {
-                btnRunAll.innerHTML = `${playIcon} Run All`;
-                btnRunAll.classList.remove('is-executing');
-            }
             if (ideBtnRunAll) {
                 ideBtnRunAll.innerHTML = `${playIcon} Run All`;
                 ideBtnRunAll.classList.remove('is-executing');
@@ -1045,6 +1076,7 @@ class NotebookCore {
             disableInsertAll: false,
             disableInsertTop: false,
             disableDelete: false,
+            showExecutionNumbers: true, // <-- NEW Option
             disableMove: false,  // <-- NEW Flag
             outputCurtailThresholdLines: 40,
             outputCurtailShowLines: 10,
@@ -1084,14 +1116,38 @@ class NotebookCore {
             topInserter.onclick = () => this.addCell(this.defaultCellType, 0);
         }
         
+        this.container.setAttribute('data-show-execution', this.options.showExecutionNumbers ? 'true' : 'false');
+        
         this.applyGlobalState();
 
-        const ui = document.getElementById('pynote-kernel-ui') as any;
-        if (ui) {
-            ui.kernel = this.options.kernelType === 'skulpt' ? 'skulpt' : 'pyodide';
-            ui.disabled = !!this.options.lockKernel;
-            ui.addEventListener('kernel-change', (e: any) => this.switchKernel(e.detail.kernel));
-            ui.addEventListener('kernel-restart', () => this.restartKernel());
+        if (this.options.showTopBar) {
+            const wrapper = document.createElement('div');
+            wrapper.className = "pynote-notebook-wrapper flex flex-col h-full";
+            if (this.container.parentNode) {
+                this.container.parentNode.insertBefore(wrapper, this.container);
+            }
+            
+            this.topbarUI = document.createElement('pynote-topbar') as any;
+            this.topbarUI.addEventListener('action-run-all', () => {
+                if (this._isExecuting) this.kernel.interrupt();
+                else this.runAll();
+            });
+            this.topbarUI.kernelUi.addEventListener('kernel-change', (e: any) => this.switchKernel(e.detail.kernel));
+            this.topbarUI.kernelUi.addEventListener('kernel-restart', () => this.restartKernel());
+            this.topbarUI.kernelUi.kernel = this.options.kernelType;
+            this.topbarUI.kernelUi.disabled = !!this.options.lockKernel;
+            
+            wrapper.appendChild(this.topbarUI);
+            wrapper.appendChild(this.container);
+        } else {
+            // IDE Mode fallback (temporarily kept for backward compatibility until IDE is fully refactored)
+            const ui = document.getElementById('pynote-kernel-ui') as any;
+            if (ui) {
+                ui.kernel = this.options.kernelType === 'skulpt' ? 'skulpt' : 'pyodide';
+                ui.disabled = !!this.options.lockKernel;
+                ui.addEventListener('kernel-change', (e: any) => this.switchKernel(e.detail.kernel));
+                ui.addEventListener('kernel-restart', () => this.restartKernel());
+            }
         }
 
         this.initKernel();
@@ -1130,6 +1186,10 @@ class NotebookCore {
         const ui = document.getElementById('pynote-kernel-ui') as any;
         if (ui && 'kernel' in ui) {
             ui.kernel = newType;
+        }
+
+        if ((this as any).topbarUI) {
+            (this as any).topbarUI.kernelUi.kernel = newType;
         }
 
         this.restartKernel();
@@ -1251,14 +1311,14 @@ class NotebookCore {
                 const idx = Array.from(this.container.children).indexOf(oldEl);
                 if (idx > -1) {
                     this.collabDoc.transact(() => {
-                        const collabProvider = (window as any).collabProvider;
+                        const collabProvider = this.options.collabProvider;
                         if (!collabProvider) return;
-                        const yMap = collabProvider.createMap();
-                        yMap.set('type', newType);
-                        yMap.set('content', collabProvider.createText(content));
-                        yMap.set('isEditing', newType === 'markdown');
+                        const collabMap = collabProvider.createMap();
+                        collabMap.set('type', newType);
+                        collabMap.set('content', collabProvider.createText(content));
+                        collabMap.set('isEditing', newType === 'markdown');
                         this.collabArray.delete(idx, 1);
-                        this.collabArray.insert(idx, [yMap]);
+                        this.collabArray.insert(idx, [collabMap]);
                     });
                 }
             } else {
@@ -1276,6 +1336,10 @@ class NotebookCore {
         const ui = document.getElementById('pynote-kernel-ui') as any;
         if (ui && typeof ui.setStatus === 'function') {
             ui.setStatus(status);
+        }
+
+        if ((this as any).topbarUI) {
+            (this as any).topbarUI.kernelUi.setStatus(status);
         }
 
         // Ensure buttons sync up their run state
@@ -1313,6 +1377,9 @@ class NotebookCore {
         
         // Unlock any stuck execution states
         this.isExecuting = false;
+        
+        // Reset global execution counter
+        (this as any).executionCount = 0;
 
         Array.from(this.container.children).forEach(cell => {
             if (cell.tagName.toLowerCase() === 'notebook-code-cell' && (cell as any).clearOutput) {
@@ -1324,6 +1391,11 @@ class NotebookCore {
                 }
                 const btn = cell.querySelector('.cell-action-btn');
                 if (btn) btn.classList.remove('is-running');
+                
+                // Reset execution prompt
+                if ((cell as any).lhsGutter) {
+                    (cell as any).lhsGutter.innerText = '[ ]';
+                }
             }
         });
 
@@ -1386,8 +1458,8 @@ class NotebookCore {
         
         // Initial render
         const frag = document.createDocumentFragment();
-        this.collabArray.forEach((yMap: any) => {
-            frag.appendChild(this.createCellFromCollabMap(yMap));
+        this.collabArray.forEach((collabMap: any) => {
+            frag.appendChild(this.createCellFromCollabMap(collabMap));
         });
         this.container.appendChild(frag);
 
@@ -1397,7 +1469,7 @@ class NotebookCore {
                 if (change.retain) {
                     index += change.retain;
                 } else if (change.insert) {
-                    change.insert.forEach((yMap: any, i: number) => {
+                    change.insert.forEach((collabMap: any, i: number) => {
                         const adapterMap = this.collabArray.get(index + i);
                         const newCell = this.createCellFromCollabMap(adapterMap);
                         if (this.container.children.length === 0 || (index + i) >= this.container.children.length) {
@@ -1422,34 +1494,34 @@ class NotebookCore {
         this.updateQuestionModeVisibility();
     }
 
-    createCellFromCollabMap(yMap: any) {
+    createCellFromCollabMap(collabMap: any) {
         let tagName = 'notebook-text-cell';
-        const type = yMap.get('type') || 'text';
+        const type = collabMap.get('type') || 'text';
         if (type === 'markdown') tagName = 'notebook-markdown-cell';
         if (type === 'code') tagName = 'notebook-code-cell';
 
         const cell = document.createElement(tagName) as any;
-        cell.yMap = yMap;
-        cell.yText = yMap.get('content');
-        cell.content = cell.yText ? cell.yText.toString() : '';
+        cell.collabMap = collabMap;
+        cell.collabText = collabMap.get('content');
+        cell.content = cell.collabText ? cell.collabText.toString() : '';
         
         cell.setAttribute('cell-id', Math.random().toString(36).substring(2, 9));
         cell.setAttribute('cell-type', type);
         
-        if (yMap.get('isLocked')) cell.setAttribute('is-locked', '');
-        if (yMap.get('isHidden')) cell.setAttribute('is-hidden', '');
-        if (yMap.get('isEditable') === false) cell.setAttribute('is-editable', 'false');
-        if (yMap.get('isDeletable') === false) cell.setAttribute('is-deletable', 'false');
-        if (yMap.get('isMoveable') === false) cell.setAttribute('is-moveable', 'false');
-        if (yMap.get('isInit')) cell.setAttribute('is-init', '');
+        if (collabMap.get('isLocked')) cell.setAttribute('is-locked', '');
+        if (collabMap.get('isHidden')) cell.setAttribute('is-hidden', '');
+        if (collabMap.get('isEditable') === false) cell.setAttribute('is-editable', 'false');
+        if (collabMap.get('isDeletable') === false) cell.setAttribute('is-deletable', 'false');
+        if (collabMap.get('isMoveable') === false) cell.setAttribute('is-moveable', 'false');
+        if (collabMap.get('isInit')) cell.setAttribute('is-init', '');
         
-        const hasIsEditing = typeof yMap.has === 'function' ? yMap.has('isEditing') : (yMap.get('isEditing') !== undefined);
-        const isEditing = hasIsEditing ? !!yMap.get('isEditing') : (type === 'markdown');
+        const hasIsEditing = typeof collabMap.has === 'function' ? collabMap.has('isEditing') : (collabMap.get('isEditing') !== undefined);
+        const isEditing = hasIsEditing ? !!collabMap.get('isEditing') : (type === 'markdown');
         if (isEditing) cell.setAttribute('is-editing', '');
 
-        const meta: any = { ...(yMap.get('metadata') || {}) };
+        const meta: any = { ...(collabMap.get('metadata') || {}) };
         const reservedKeys = ['content', 'type', 'isLocked', 'isHidden', 'isEditable', 'isDeletable', 'isMoveable', 'isInit', 'isEditing', 'metadata'];
-        for (const [key, value] of yMap.entries()) {
+        for (const [key, value] of collabMap.entries()) {
             if (!reservedKeys.includes(key)) {
                 meta[key] = value;
             }
@@ -1527,16 +1599,16 @@ class NotebookCore {
     addCell(type = 'code', index = 0, preventFocus = false) {
         if (this.isReadOnly || this.options.disableInsertAll) return;
         if (this.collabArray) {
-            const collabProvider = (window as any).collabProvider;
+            const collabProvider = this.options.collabProvider;
             if (!collabProvider) return;
-            const yMap = collabProvider.createMap();
-            yMap.set('type', type);
-            yMap.set('content', collabProvider.createText(''));
-            yMap.set('isEditing', type === 'markdown');
+            const collabMap = collabProvider.createMap();
+            collabMap.set('type', type);
+            collabMap.set('content', collabProvider.createText(''));
+            collabMap.set('isEditing', type === 'markdown');
             
             this.collabDoc.transact(() => {
                 const insertIndex = index !== undefined && index >= 0 ? index : this.collabArray.length;
-                this.collabArray.insert(insertIndex, [yMap]);
+                this.collabArray.insert(insertIndex, [collabMap]);
             });
             
             if (!preventFocus) {
@@ -1703,10 +1775,10 @@ class NotebookCore {
                 const idx = Array.from(this.container.children).indexOf(el);
                 if (idx > -1) {
                     this.collabDoc.transact(() => {
-                        const collabProvider = (window as any).collabProvider;
+                        const collabProvider = this.options.collabProvider;
                         
                         // Mutate current text
-                        const collabText = (el as any).yText;
+                        const collabText = (el as any).collabText;
                         if (collabText) {
                             const rawText = collabText.getRaw();
                             if (rawText.delete) {
@@ -1715,12 +1787,12 @@ class NotebookCore {
                         }
 
                         // Create new cell map
-                        const yMap = collabProvider.createMap();
-                        yMap.set('type', el.cellType);
-                        yMap.set('content', collabProvider.createText(secondHalf));
-                        yMap.set('isEditing', el.cellType === 'markdown');
+                        const collabMap = collabProvider.createMap();
+                        collabMap.set('type', el.cellType);
+                        collabMap.set('content', collabProvider.createText(secondHalf));
+                        collabMap.set('isEditing', el.cellType === 'markdown');
                         
-                        this.collabArray.insert(idx + 1, [yMap]);
+                        this.collabArray.insert(idx + 1, [collabMap]);
                     });
                 }
             } else {
@@ -1774,7 +1846,7 @@ class NotebookCore {
 
         if (this.collabArray) {
             this.collabDoc.transact(() => {
-                const collabText = (el as any).yText;
+                const collabText = (el as any).collabText;
                 if (collabText) {
                     const rawText = collabText.getRaw();
                     if (rawText.insert) {
@@ -1818,16 +1890,16 @@ class NotebookCore {
             const idx = Array.from(this.container.children).indexOf(el);
             if (idx > -1) {
                 this.collabDoc.transact(() => {
-                    const collabProvider = (window as any).collabProvider;
-                    const yMap = collabProvider.createMap();
+                    const collabProvider = this.options.collabProvider;
+                    const collabMap = collabProvider.createMap();
                     for (const [key, val] of Object.entries(data)) {
                         if (key === 'content') {
-                            yMap.set('content', collabProvider.createText(val as string));
+                            collabMap.set('content', collabProvider.createText(val as string));
                         } else {
-                            yMap.set(key, val);
+                            collabMap.set(key, val);
                         }
                     }
-                    this.collabArray.insert(idx + 1, [yMap]);
+                    this.collabArray.insert(idx + 1, [collabMap]);
                 });
             }
         } else {
@@ -1885,22 +1957,22 @@ class NotebookCore {
             const selected = this.getSelectedCell();
             
             if (this.collabArray) {
-                const collabProvider = (window as any).collabProvider;
-                const yMap = collabProvider.createMap();
+                const collabProvider = this.options.collabProvider;
+                const collabMap = collabProvider.createMap();
                 for (const [key, val] of Object.entries(data)) {
                     if (key === 'content') {
-                        yMap.set('content', collabProvider.createText(val as string));
+                        collabMap.set('content', collabProvider.createText(val as string));
                     } else {
-                        yMap.set(key, val);
+                        collabMap.set(key, val);
                     }
                 }
                 
                 this.collabDoc.transact(() => {
                     if (selected) {
                         const idx = Array.from(this.container.children).indexOf(selected.el);
-                        this.collabArray.insert(idx + 1, [yMap]);
+                        this.collabArray.insert(idx + 1, [collabMap]);
                     } else {
-                        this.collabArray.push([yMap]);
+                        this.collabArray.push([collabMap]);
                     }
                 });
             } else {

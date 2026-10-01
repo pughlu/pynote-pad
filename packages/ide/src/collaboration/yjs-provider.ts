@@ -2,7 +2,7 @@
 
 import * as Y from 'yjs';
 import { yCollab } from 'y-codemirror.next';
-import { NotebookFormatConverter } from '../../notebook-format';
+import { NotebookFormatConverter } from '@pynote/core/notebook-format';
 import { 
     ICollaborationProvider, 
     ICollaborativeDocument, 

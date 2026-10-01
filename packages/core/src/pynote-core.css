@@ -20,6 +20,10 @@ notebook-code-cell {
     width: 100%; 
 }
 
+[data-show-execution="true"] .cell-wrapper {
+    padding-left: 2rem;
+}
+
 /* CodeMirror 6 Specific Overrides */
 .cm-wrapper .cm-editor { flex: 1; }
 .cm-editor.cm-focused { outline: none !important; }

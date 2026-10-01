@@ -29,7 +29,7 @@ class CodeCellElement extends BaseNotebookCell {
     attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
         super.attributeChangedCallback(name, oldVal, newVal);
         if (name === 'content' && this.editorView) {
-            if ((this as any).yText) return; // Yjs is driving the content natively
+            if ((this as any).collabText) return; // Collaboration Provider is driving the content natively
             if (this.content !== this.editorView.state.doc.toString()) {
                 this.editorView.dispatch({
                     changes: {from: 0, to: this.editorView.state.doc.length, insert: this.content}
@@ -166,8 +166,16 @@ class CodeCellElement extends BaseNotebookCell {
                             const newContent = update.view.state.doc.toString();
                             if (this.content !== newContent) {
                                 this.content = newContent;
-                                if (!(this as any).yText) {
+                                if (!(this as any).collabText) {
                                     this.dispatchAction('cell-content-changed');
+                                }
+                                
+                                // Indicate that the code has changed since last run
+                                if ((this as any).lhsGutter) {
+                                    const text = (this as any).lhsGutter.innerText;
+                                    if (text !== '[ ]' && !text.includes('*') && !text.includes('!') && !text.includes('...')) {
+                                        (this as any).lhsGutter.innerText = text.replace(']', '*]');
+                                    }
                                 }
                             }
                             this.setButtonState('default');
@@ -180,12 +188,12 @@ class CodeCellElement extends BaseNotebookCell {
                 }));
             }
             
-            if ((this as any).yText && (window as any).collabProvider) {
-                customExtensions.push((window as any).collabProvider.createEditorBinding((this as any).yText));
+            if ((this as any).collabText && (window as any).notebookCore?.options?.collabProvider) {
+                customExtensions.push((window as any).notebookCore?.options?.collabProvider.createEditorBinding((this as any).collabText));
             }
 
             this.editorView = cm6.createEditorView(undefined, this.editorWrap);
-            const initialContent = (this as any).yText ? (this as any).yText.toString() : this.content;
+            const initialContent = (this as any).collabText ? (this as any).collabText.toString() : this.content;
             const state = cm6.createEditorState(initialContent, { extensions: customExtensions });
             this.editorView.setState(state);
 
@@ -264,8 +272,8 @@ class CodeCellElement extends BaseNotebookCell {
             if (this.outputContent.scrollTop > 0) this.topShadow.classList.remove('opacity-0');
             else this.topShadow.classList.add('opacity-0');
 
-            if (this.outputContent.scrollHeight > this.outputContent.clientHeight && 
-                Math.ceil(this.outputContent.scrollTop + this.outputContent.clientHeight) < this.outputContent.scrollHeight) {
+            if (this.outputContent.scrollHeight > this.outputContent.clientHeight + 2 && 
+                Math.ceil(this.outputContent.scrollTop + this.outputContent.clientHeight) < this.outputContent.scrollHeight - 2) {
                 this.bottomShadow.classList.remove('opacity-0');
             } else {
                 this.bottomShadow.classList.add('opacity-0');
@@ -307,7 +315,8 @@ class CodeCellElement extends BaseNotebookCell {
         if (!this.outputContent) return;
         
         const config = (window.notebookCore && window.notebookCore.options) || { outputCurtailThresholdLines: 40, outputCurtailShowLines: 10, outputLineHeightPx: 21 };        
-        const textLines = (this.outputContent.innerText.match(/\n/g) || []).length + 1;
+        const htmlStr = this.outputContent.innerHTML || "";
+        const textLines = (htmlStr.match(/<br>|\n/gi) || []).length + 1;
         const shouldCurtail = textLines > config.outputCurtailThresholdLines;
 
         if (shouldCurtail) {
@@ -372,6 +381,7 @@ class CodeCellElement extends BaseNotebookCell {
         
         this.setButtonState('running');
         if (this.actionBtnElement) this.actionBtnElement.classList.add('is-running');
+        if ((this as any).lhsGutter) (this as any).lhsGutter.innerText = '[*]';
         this.outputWrapper.classList.remove('hidden');
         this.outputWrapper.classList.add('flex');
         this.outputContent.innerHTML = '';
@@ -382,6 +392,11 @@ class CodeCellElement extends BaseNotebookCell {
         try {
             await window.notebookCore.kernel.execute(this.content, this.outputContent);
             this.setButtonState('success');
+            
+            if (window.notebookCore) {
+                window.notebookCore.executionCount = (window.notebookCore.executionCount || 0) + 1;
+                if ((this as any).lhsGutter) (this as any).lhsGutter.innerText = `[${window.notebookCore.executionCount}]`;
+            }
         } catch (err: any) {
             let errStr = err.toString();
             if (errStr.includes("Kernel restarted...")) {
@@ -389,8 +404,11 @@ class CodeCellElement extends BaseNotebookCell {
                 this.outputWrapper.classList.remove('hidden');
                 this.outputWrapper.classList.add('flex');
             }
-            this.outputContent.innerHTML += `<span class="text-red-500 font-semibold mt-2 block">${errStr}</span>`;
+            if (!errStr.includes("Output exceeded limit")) {
+                this.outputContent.innerHTML += `<span class="text-red-500 font-semibold mt-2 block">${errStr}</span>`;
+            }
             this.setButtonState('default');
+            if ((this as any).lhsGutter) (this as any).lhsGutter.innerText = '[!]';
         } finally {
             this.output = this.outputContent.innerHTML;
             this.applyHysteresis();

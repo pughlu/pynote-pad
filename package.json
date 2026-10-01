@@ -1,8 +1,9 @@
 {
-  "name": "pynote",
+  "name": "pynote-monorepo",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -11,21 +12,6 @@
     "test:e2e": "playwright test",
     "prepare": "husky",
     "postinstall": "cp node_modules/lms-widget-manager/dist/lms-widget-manager.iife.js public/ || echo 'Ensure lms-widget-manager is built'"
-  },
-  "dependencies": {
-    "@azure/msal-browser": "^5.22.0",
-    "@codemirror/autocomplete": "^6.20.3",
-    "@codemirror/commands": "^6.11.1",
-    "@codemirror/lang-markdown": "^6.5.2",
-    "@codemirror/lang-python": "^6.2.1",
-    "@codemirror/language": "^6.12.4",
-    "@codemirror/lint": "^6.9.7",
-    "@codemirror/state": "^6.7.5",
-    "@codemirror/view": "^6.43.12",
-    "codemirror": "^6.0.2",
-    "lms-widget-manager": "github:pughlu/lms-widget-manager",
-    "y-codemirror.next": "^0.3.6",
-    "yjs": "^13.6.32"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

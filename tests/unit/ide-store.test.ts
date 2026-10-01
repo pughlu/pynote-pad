@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { IDEStore } from '../../src/ide/store';
-import { EventBus } from '../../src/ide/event-bus';
+import { IDEStore } from '../../packages/ide/src/store';
+import { EventBus } from '../../packages/ide/src/event-bus';
 
 describe('IDEStore', () => {
     let bus: EventBus;

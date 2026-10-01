@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NotebookFormatConverter } from '../../src/notebook-format';
+import { NotebookFormatConverter } from '../../packages/core/src/notebook-format';
 
 describe('NotebookFormatConverter', () => {
     it('should correctly deserialize a simple code cell', () => {

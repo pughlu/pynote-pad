@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { EventBus } from '../../src/ide/event-bus';
-import { IDEEvents } from '../../src/ide/types';
+import { EventBus } from '../../packages/ide/src/event-bus';
+import { IDEEvents } from '../../packages/ide/src/types';
 
 describe('EventBus', () => {
     it('should register and invoke listeners', () => {

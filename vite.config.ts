@@ -21,7 +21,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        ide: resolve(__dirname, 'ide.html')
+        ide: resolve(__dirname, 'packages/ide/index.html')
       },
       output: {
         manualChunks(id) {

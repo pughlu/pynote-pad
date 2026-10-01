@@ -5,7 +5,7 @@ class TextCellElement extends BaseNotebookCell {
     attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
         super.attributeChangedCallback(name, oldVal, newVal);
         if (name === 'content') {
-            if ((this as any).yText) return; // Yjs drives this
+            if ((this as any).collabText) return; // Collaboration Provider drives this
             if (this.editorView && this.content !== this.editorView.state.doc.toString()) {
                 this.editorView.dispatch({
                     changes: {from: 0, to: this.editorView.state.doc.length, insert: this.content}
@@ -50,7 +50,7 @@ class TextCellElement extends BaseNotebookCell {
                 cm6.EditorView.updateListener.of((update: any) => {
                     if (update.docChanged) {
                         this.content = update.state.doc.toString();
-                        if (!(this as any).yText) {
+                        if (!(this as any).collabText) {
                             this.dispatchAction('cell-content-changed');
                         }
                     }
@@ -66,11 +66,11 @@ class TextCellElement extends BaseNotebookCell {
                 cm6.EditorState.readOnly.of(this.effectiveIsLocked || !this.effectiveIsEditable)
             ];
 
-            if ((this as any).yText && (window as any).collabProvider) {
-                customExtensions.push((window as any).collabProvider.createEditorBinding((this as any).yText));
+            if ((this as any).collabText && (window as any).notebookCore?.options?.collabProvider) {
+                customExtensions.push((window as any).notebookCore?.options?.collabProvider.createEditorBinding((this as any).collabText));
             }
 
-            const initialContent = (this as any).yText ? (this as any).yText.toString() : (this.content || '');
+            const initialContent = (this as any).collabText ? (this as any).collabText.toString() : (this.content || '');
             const state = cm6.createEditorState(initialContent, { extensions: customExtensions });
             this.editorView = cm6.createEditorView(state, this.editDiv);
         }

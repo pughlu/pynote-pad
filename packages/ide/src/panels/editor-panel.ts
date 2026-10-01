@@ -4,7 +4,7 @@
 import { EventBus } from '../event-bus';
 import { IDEStore } from '../store';
 import { CellConfig, IDEPanel, ViewMode } from '../types';
-import '../../kernel-ui';
+import '@pynote/core/kernel-ui';
 
 export class EditorPanel implements IDEPanel {
     private container!: HTMLElement;
@@ -272,6 +272,7 @@ export class EditorPanel implements IDEPanel {
                 }
                 
                 coreOptions.widgetId = activeFile;
+                coreOptions.collabProvider = this.store.collabProvider;
                 (window as any).notebookCore = new (window as any).NotebookCore('pynote-mount-point', coreOptions);
                 
                 const doc = this.store.collabDocs[activeFile];
